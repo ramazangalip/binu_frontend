@@ -1,3 +1,4 @@
+import 'package:binu_frontend/components/app_bar.dart';
 import 'package:flutter/material.dart';
 import '../components/bottom_navigation_bar.dart';
 import 'home_screen.dart';
@@ -35,10 +36,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Binu App'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
+      appBar: CustomAppBar(),
       body: _screens[_currentIndex],
       bottomNavigationBar: CustomBottomNavigationBar(
         currentIndex: _currentIndex,
