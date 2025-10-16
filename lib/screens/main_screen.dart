@@ -36,7 +36,11 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(),
+      appBar: CustomAppBar(showNotificationIcon: true, showProfileIcon: true,onNotificationPressed:() {
+        
+      },onProfilePressed: () {
+        
+      },),
       body: _screens[_currentIndex],
       bottomNavigationBar: CustomBottomNavigationBar(
         currentIndex: _currentIndex,
