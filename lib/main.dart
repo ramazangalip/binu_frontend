@@ -1,8 +1,18 @@
 import 'package:binu_frontend/screens/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; 
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 3. Firebase'i başlat
+  // (firebase_options.dart dosyasındaki ayarları kullanır)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
