@@ -2,7 +2,9 @@ import 'package:binu_frontend/components/app_bar.dart';
 import 'package:binu_frontend/screens/forgot_password_screen.dart';
 import 'package:binu_frontend/screens/main_screen.dart';
 import 'package:binu_frontend/screens/register_screen.dart';
+import 'package:binu_frontend/screens/verify_email_screen.dart'; // ✅ doğrulama ekranı
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ✅ Firebase eklendi
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +18,69 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  bool _isLoading = false; // ⏳ yüklenme göstergesi
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final auth = FirebaseAuth.instance;
+      final UserCredential userCredential = await auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      final user = userCredential.user;
+
+      if (user != null) {
+        if (user.emailVerified) {
+          // ✅ E-posta doğrulanmışsa ana ekrana git
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF4CAF50),
+              content: Text('Giriş başarılı! Hoş geldiniz 🎓'),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => MainScreen()),
+          );
+        } else {
+          // ❌ E-posta doğrulanmamışsa doğrulama ekranına yönlendir
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.orange,
+              content: Text('Lütfen e-postanızı doğrulayın 📧'),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => VerifyEmailScreen()),
+          );
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'Bir hata oluştu.';
+      if (e.code == 'user-not-found') {
+        message = 'Kullanıcı bulunamadı.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Şifre hatalı.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Geçersiz e-posta adresi.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text(message)),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -25,14 +90,12 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              Container(
-                margin: const EdgeInsets.only(top: 60),
-                child: const Text(
-                  "Giriş Yap",
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
-                ),
+              const SizedBox(height: 60),
+              const Text(
+                "Giriş Yap",
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
               ),
-          
+
               // 📧 E-posta alanı
               Container(
                 width: 375,
@@ -52,24 +115,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'E-posta adresi boş olamaz';
                     }
-          
-                    final emailRegex = RegExp(
-                      r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                    );
+
+                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
                     if (!emailRegex.hasMatch(value)) {
-                      return 'Geçerli bir e-posta adresi giriniz';
+                      return 'Geçerli bir e-posta giriniz';
                     }
-          
-                    // Sadece @bingol.edu.tr kabul et
+
                     if (!value.endsWith('@bingol.edu.tr')) {
                       return 'Sadece @bingol.edu.tr adresleri kabul edilir';
                     }
-          
+
                     return null;
                   },
                 ),
               ),
-          
+
               // 🔒 Şifre alanı
               Container(
                 width: 375,
@@ -96,31 +156,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
               ),
-          
+
               // 🚀 Giriş butonu
               Container(
                 width: 375,
                 height: 50,
                 margin: const EdgeInsets.only(left: 20, right: 20, top: 25),
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      // E-posta ve şifre doğruysa buraya düşer
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          behavior: SnackBarBehavior.floating,
-          
-                          backgroundColor: Color(0xFF4CAF50),
-                          content: Text('Giriş başarılı! Hoş geldiniz 🎓'),
-                        ),
-                      );
-          
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => MainScreen()),
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _login,
                   style: ButtonStyle(
                     backgroundColor: WidgetStateProperty.all<Color>(
                       Colors.deepPurple.shade900,
@@ -132,18 +175,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  child: const Text("Giriş Yap"),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Giriş Yap"),
                 ),
               ),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Parolanızı mi unuttunuz? "),
+                  const Text("Parolanızı mı unuttunuz? "),
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => ForgotPasswordScreen()
+                        MaterialPageRoute(
+                          builder: (context) => const ForgotPasswordScreen(),
                         ),
                       );
                     },
@@ -154,15 +201,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("Hesabınız yok mu? "),
+                  const Text("Hesabınız yok mu? "),
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (context) => RegisterScreen()
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterScreen(),
                         ),
                       );
                     },
