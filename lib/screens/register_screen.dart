@@ -53,7 +53,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         }
 
-        // Kullanıcının uygulamada "doğrulanmış" görünmemesi için oturumu kapat
+        
         await FirebaseAuth.instance.signOut();
 
         if (mounted) {

@@ -18,7 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _isLoading = false; // ⏳ yüklenme göstergesi
+  bool _isLoading = false; 
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -36,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (user != null) {
         if (user.emailVerified) {
-          // ✅ E-posta doğrulanmışsa ana ekrana git
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               backgroundColor: Color(0xFF4CAF50),
@@ -49,7 +48,6 @@ class _LoginScreenState extends State<LoginScreen> {
             MaterialPageRoute(builder: (context) => MainScreen()),
           );
         } else {
-          // ❌ E-posta doğrulanmamışsa doğrulama ekranına yönlendir
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               backgroundColor: Colors.orange,

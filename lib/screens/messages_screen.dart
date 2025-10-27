@@ -1,155 +1,113 @@
-// import 'package:flutter/material.dart';
-
-// class MessagesScreen extends StatelessWidget {
-//   const MessagesScreen({Key? key}) : super(key: key);
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return const Center(
-//       child: Text(
-//         'Mesajlar',
-//         style: TextStyle(fontSize: 24),
-//       ),
-//     );
-//   }
-// }
+import 'package:binu_frontend/screens/chat_detail_screen.dart'; // Sohbet detay sayfası için
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
-class MessagesScreen extends StatefulWidget {
+class MessagesScreen extends StatelessWidget {
   const MessagesScreen({Key? key}) : super(key: key);
 
   @override
-  _MessagesScreenState createState() => _MessagesScreenState();
-}
-
-class _MessagesScreenState extends State<MessagesScreen> {
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'text': 'Selam! Nasılsın?',
-      'isMe': false,
-      'time': DateTime.now().subtract(const Duration(minutes: 5)),
-    },
-    {
-      'text': 'İyiyim, sen?',
-      'isMe': true,
-      'time': DateTime.now().subtract(const Duration(minutes: 2)),
-    },
-  ];
-
-  final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-
-  void _sendMessage() {
-    if (_controller.text.trim().isEmpty) return;
-    setState(() {
-      _messages.add({
-        'text': _controller.text.trim(),
-        'isMe': true,
-        'time': DateTime.now(),
-      });
-      _controller.clear();
-    });
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final List<Map<String, dynamic>> conversations = [
+      {
+        'name': 'Ayşe Yılmaz',
+        'avatar': 'https://i.pravatar.cc/150?img=2',
+        'lastMessage': 'Harika, projede görüşürüz o zaman!',
+        'time': '10:45',
+        'unreadCount': 2,
+      },
+      {
+        'name': 'Mehmet Demir',
+        'avatar': 'https://i.pravatar.cc/150?img=3',
+        'lastMessage': 'Ders notlarını gönderdim, kontrol edebilir misin?',
+        'time': '09:30',
+        'unreadCount': 0,
+      },
+      {
+        'name': 'Prof. Dr. Elif Kaya',
+        'avatar': 'https://i.pravatar.cc/150?img=4',
+        'lastMessage': 'Yarınki dersle ilgili bir duyuru paylaştım.',
+        'time': 'Dün',
+        'unreadCount': 1,
+      },
+      {
+        'name': 'Caner Ekinci',
+        'avatar': 'https://i.pravatar.cc/150?img=5',
+        'lastMessage': 'Tamamdır, anlaştık.',
+        'time': 'Dün',
+        'unreadCount': 0,
+      },
+    ];
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Mesajlar'),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        actions: [
+          IconButton(onPressed: () {}, icon: const Icon(Icons.add_comment_outlined)),
+        ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(10),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final msg = _messages[index];
-                final bool isMe = msg['isMe'];
-                return Align(
-                  alignment:
-                      isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 10, horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: isMe
-                          ? Colors.blueAccent.shade100
-                          : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          msg['text'],
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black87,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          DateFormat('HH:mm').format(msg['time']),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isMe
-                                ? Colors.white70
-                                : Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+      body: ListView.separated(
+        itemCount: conversations.length,
+        itemBuilder: (context, index) {
+          final conversation = conversations[index];
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            leading: CircleAvatar(
+              radius: 28,
+              backgroundImage: NetworkImage(conversation['avatar']),
             ),
-          ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-            color: Colors.grey.shade100,
-            child: Row(
+            title: Text(
+              conversation['name'],
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              conversation['lastMessage'],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'Mesaj yaz...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(25.0)),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
+                Text(conversation['time'], style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                if (conversation['unreadCount'] > 0) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.shade900,
+                      shape: BoxShape.circle,
                     ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: Colors.blueAccent,
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
-                  ),
-                ),
+                    child: Text(
+                      conversation['unreadCount'].toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  )
+                ]
               ],
             ),
-          ),
-        ],
+            onTap: () {
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatDetailScreen(
+                    userName: conversation['name'],
+                    avatarUrl: conversation['avatar'],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          thickness: 1,
+          color: Colors.grey[100],
+          indent: 80,
+        ),
       ),
     );
   }

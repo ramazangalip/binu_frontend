@@ -1,4 +1,6 @@
 import 'package:binu_frontend/components/app_bar.dart';
+import 'package:binu_frontend/screens/login_screen.dart';
+import 'package:binu_frontend/screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
 import '../components/bottom_navigation_bar.dart';
 import 'home_screen.dart';
@@ -7,6 +9,7 @@ import 'profile_screen.dart';
 import 'leaderboard_screen.dart';
 import 'messages_screen.dart';
 import 'reports_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Çıkış yapmak için
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -21,7 +24,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const SearchScreen(),
-    const ProfileScreen(),
+    const ProfileScreen(), // Index 2
     const LeaderboardScreen(),
     const MessagesScreen(),
     const ReportsScreen(),
@@ -33,14 +36,38 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  void _handleProfileMenuSelection(String value) {
+    switch (value) {
+      case 'profile':
+        if (_currentIndex != 2) {
+          setState(() {
+            _currentIndex = 2;
+          });
+        }
+        break;
+      case 'logout':
+        FirebaseAuth.instance.signOut();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, 
+        );
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(showNotificationIcon: true, showProfileIcon: true,onNotificationPressed:() {
-        
-      },onProfilePressed: () {
-        
-      },),
+      appBar: CustomAppBar(
+        showNotificationIcon: true,
+        showProfileIcon: true,
+        onNotificationPressed: () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (context) => const NotificationsScreen()));
+        },
+        onProfileMenuItemSelected: _handleProfileMenuSelection,
+        profileImageUrl: FirebaseAuth.instance.currentUser?.photoURL,
+      ),
       body: _screens[_currentIndex],
       bottomNavigationBar: CustomBottomNavigationBar(
         currentIndex: _currentIndex,
@@ -49,3 +76,4 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
+

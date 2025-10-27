@@ -12,7 +12,6 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
 
-  // 🔑 Formu kontrol etmek için anahtar
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -22,13 +21,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       appBar: const CustomAppBar(),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-        // 🔹 Form eklendi
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Başlık
               const Text(
                 "Şifrenizi Sıfırlayın",
                 style: TextStyle(
@@ -39,14 +36,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 15),
 
-              // Açıklama
               const Text(
                 "Üniversite e-posta adresinizi girin, şifre sıfırlama bağlantısını size gönderelim.",
                 style: TextStyle(color: Colors.black54, fontSize: 14),
               ),
               const SizedBox(height: 25),
 
-              // E-posta input
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
@@ -90,7 +85,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
               const SizedBox(height: 25),
 
-              // Bilgilendirme kutusu
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(15),
@@ -122,7 +116,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
               const SizedBox(height: 30),
 
-              // Buton
+           
               SizedBox(
                 width: double.infinity,
                 height: 45,
@@ -135,9 +129,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     elevation: 0,
                   ),
                   onPressed: () {
-                    // 🔹 Önce form doğrulamasını yap
+               
                     if (_formKey.currentState!.validate()) {
-                      // Eğer form geçerliyse
+                    
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           behavior: SnackBarBehavior.floating,
@@ -146,8 +140,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               'Sıfırlama bağlantısı e-posta adresinize gönderildi'),
                         ),
                       );
-
-                      // Giriş ekranına yönlendir
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(

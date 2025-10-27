@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
+// import 'package:intl/intl.dart'; // Tarih formatlama için bu paket gerekebilir
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({Key? key}) : super(key: key);
@@ -10,134 +9,151 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _projectTitleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  File? _selectedFile;
-  bool _isSending = false;
+  final TextEditingController _statusController = TextEditingController();
+  final TextEditingController _dateController = TextEditingController();
 
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'docx', 'pptx'],
+  // Takım üyeleri için bir liste
+  final List<String> _teamMembers = ['Ayşe Yılmaz', 'Can Demir'];
+
+  Future<void> _selectDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (picked != null) {
       setState(() {
-        _selectedFile = File(result.files.single.path!);
+        _dateController.text = "${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}";
       });
     }
   }
 
-  Future<void> _sendReport() async {
-    if (_projectTitleController.text.isEmpty || _selectedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lütfen proje adı ve dosya seçin.")),
-      );
-      return;
-    }
+  void _addTeamMember() {
 
-    setState(() => _isSending = true);
-
-    // Burada gerçek backend (örneğin Firebase veya API) çağrısı yapılabilir
-    await Future.delayed(const Duration(seconds: 2)); // Simülasyon
-
-    setState(() => _isSending = false);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Rapor başarıyla gönderildi!")),
-    );
-
-    // Alanları temizle
-    _projectTitleController.clear();
-    _descriptionController.clear();
-    setState(() => _selectedFile = null);
+    setState(() {
+      _teamMembers.add('Yeni Üye');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Proje & Rapor Gönderimi',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.blueAccent,
-      ),
+      backgroundColor: Colors.grey[100],
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Text(
-              "Raporunuzu veya projenizi yükleyin.\nGönderim sonrası öğretim görevlisi tarafından incelenecektir.",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-
-            TextField(
-              controller: _projectTitleController,
-              decoration: InputDecoration(
-                labelText: 'Proje / Rapor Başlığı',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+        padding: const EdgeInsets.all(20.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionTitle('Proje Adı'),
+              TextFormField(
+                controller: _projectTitleController,
+                decoration: const InputDecoration(
+                  hintText: 'Örn: Mobil Uygulama Geliştirme',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
               ),
-            ),
-
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: 'Açıklama (isteğe bağlı)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 24),
+              
+              _buildSectionTitle('Açıklama'),
+              TextFormField(
+                controller: _descriptionController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Projenin hedeflerini, kapsamını ve metodolojisini açıklayın.',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                  alignLabelWithHint: true,
                 ),
               ),
-              maxLines: 3,
-            ),
+              const SizedBox(height: 24),
 
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.attach_file),
-              label: const Text("Dosya Seç (.pdf, .docx, .pptx)"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+              _buildSectionTitle('Teslim Tarihi'),
+              TextFormField(
+                controller: _dateController,
+                readOnly: true,
+                onTap: _selectDate,
+                decoration: const InputDecoration(
+                  hintText: 'GG.AA.YYYY',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
               ),
-            ),
+              const SizedBox(height: 24),
 
-            const SizedBox(height: 10),
-            if (_selectedFile != null)
-              Text(
-                "Seçilen dosya: ${_selectedFile!.path.split('/').last}",
-                style: const TextStyle(color: Colors.black87),
+              _buildSectionTitle('Takım Üyeleri'),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 4.0,
+                children: [
+                  ..._teamMembers.map((member) => Chip(label: Text(member))),
+                  ActionChip(
+                    avatar: const Icon(Icons.add),
+                    label: const Text('Üye Ekle'),
+                    onPressed: _addTeamMember,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              _buildSectionTitle('İlerleme Durumu'),
+              TextFormField(
+                controller: _statusController,
+                decoration: const InputDecoration(
+                  hintText: 'Örn: %75 tamamlandı, test aşamasında',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
               ),
 
-            const SizedBox(height: 30),
-            _isSending
-                ? const CircularProgressIndicator()
-                : ElevatedButton.icon(
-                    onPressed: _sendReport,
-                    icon: const Icon(Icons.send),
-                    label: const Text(
-                      "Gönder",
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
-                      backgroundColor: Colors.green,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+              // DEĞİŞİKLİK: Buton buraya eklendi
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Raporu kaydetme mantığı
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple.shade900,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-          ],
+                  child: const Text('Raporu Kaydet', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+      // DEĞİŞİKLİK: bottomNavigationBar kaldırıldı
+    );
+  }
+
+  // Başlıklar için yardımcı bir widget
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }
 }
+

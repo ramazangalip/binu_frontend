@@ -1,4 +1,5 @@
 import 'package:binu_frontend/screens/login_screen.dart';
+import 'package:binu_frontend/screens/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/main_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -43,7 +44,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }
