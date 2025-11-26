@@ -1,8 +1,8 @@
 import 'package:binu_frontend/components/app_bar.dart';
 import 'package:binu_frontend/screens/login_screen.dart';
-import 'package:binu_frontend/screens/verify_email_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import 'package:binu_frontend/providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,6 +13,9 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController(); 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -22,75 +25,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _fullNameController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
-  Future<void> _registerAndVerify() async {
+  Future<void> _registerUser() async {
     if (!_formKey.currentState!.validate()) {
-      return;
+      return; 
     }
 
     setState(() {
       _isLoading = true;
     });
+    
+  
+    const int studentRoleId = 1; 
 
     try {
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      final success = await authProvider.register(
+        _emailController.text.trim(), 
+        _usernameController.text.trim(), 
+        _fullNameController.text.trim(),
+        _passwordController.text.trim(), 
+        studentRoleId
       );
 
-      if (userCredential.user != null) {
-        await userCredential.user!.sendEmailVerification();
-
+      if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               behavior: SnackBarBehavior.floating,
               backgroundColor: Color(0xFF4CAF50),
-              content: Text('Kayıt başarılı! Hesabınızı doğrulamak için e-postanızı kontrol edin.'),
+              content: Text('Kayıt başarılı! Şimdi giriş yapabilirsiniz.'),
             ),
           );
-        }
-
-        
-        await FirebaseAuth.instance.signOut();
-
-        if (mounted) {
+          
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const VerifyEmailScreen()),
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
           );
         }
-      }
-    } on FirebaseAuthException catch (e) {
-      String message;
-      if (e.code == 'email-already-in-use') {
-        message = 'Bu e-posta adresi zaten kullanımda.';
-      } else if (e.code == 'weak-password') {
-        message = 'Şifre çok zayıf. Lütfen daha güçlü bir şifre seçin.';
-      } else if (e.code == 'invalid-email') {
-        message = 'Geçersiz e-posta adresi.';
-      } else {
-        message = 'Bir hata oluştu: ${e.message}';
-      }
+      } 
 
+    } on Exception catch (e) {
+      String message = 'Kayıt başarısız oldu.';
+      final errorString = e.toString().toLowerCase();
+      
+      if (errorString.contains('already used') || errorString.contains('unique constraint')) {
+         message = "Bu kullanıcı adı veya e-posta zaten kayıtlı.";
+      } else if (errorString.contains('length')) {
+         message = "Şifre çok kısa veya alanlar hatalı.";
+      } else {
+         message = "Sunucuya bağlanılamadı veya genel bir hata oluştu: ${e.toString()}";
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
             backgroundColor: Colors.red,
             content: Text(message),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            content: Text('Beklenmedik bir hata oluştu: $e'),
           ),
         );
       }
@@ -102,6 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     }
   }
+
 
   String? _emailValidator(String? value) {
     if (value == null || value.isEmpty) {
@@ -132,6 +130,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  String? _defaultValidator(String? value, String fieldName) {
+    if (value == null || value.isEmpty) {
+      return '$fieldName boş bırakılamaz.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,6 +144,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
               Container(
@@ -149,10 +155,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
+              // Ad Soyad
+              Container(
+                width: 375,
+                margin: const EdgeInsets.only(top: 60),
+                child: TextFormField(
+                  controller: _fullNameController,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
+                    prefixIcon: Icon(Icons.person_outline),
+                    labelText: 'Ad Soyad',
+                  ),
+                  validator: (value) => _defaultValidator(value, 'Ad Soyad'),
+                ),
+              ),
+
+              // Kullanıcı Adı
+              Container(
+                width: 375,
+                margin: const EdgeInsets.only(top: 25),
+                child: TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
+                    prefixIcon: Icon(Icons.alternate_email),
+                    labelText: 'Kullanıcı Adı',
+                  ),
+                  validator: (value) => _defaultValidator(value, 'Kullanıcı Adı'),
+                ),
+              ),
+
+
               // E-posta Alanı
               Container(
                 width: 375,
-                margin: const EdgeInsets.only(left: 20, right: 20, top: 60),
+                margin: const EdgeInsets.only(top: 25),
                 child: TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -163,14 +200,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icon(Icons.email_outlined),
                     labelText: 'Üniversite E-postanız',
                   ),
-                  validator: _emailValidator,
+                  validator: _emailValidator, 
                 ),
               ),
 
               // Şifre Alanı
               Container(
                 width: 375,
-                margin: const EdgeInsets.only(left: 20, right: 20, top: 25),
+                margin: const EdgeInsets.only(top: 25),
                 child: TextFormField(
                   controller: _passwordController,
                   obscureText: true,
@@ -189,14 +226,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Container(
                 width: 375,
                 height: 50,
-                margin: const EdgeInsets.only(left: 20, right: 20, top: 25),
+                margin: const EdgeInsets.only(top: 25),
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _registerAndVerify,
+                  onPressed: _isLoading ? null : _registerUser,
                   style: ButtonStyle(
                     backgroundColor: MaterialStateProperty.all<Color>(
                       Colors.deepPurple.shade900,
                     ),
-                    foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+                    foregroundColor:
+                        MaterialStateProperty.all<Color>(Colors.white),
                     shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10.0),
@@ -215,28 +253,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       : const Text("Kayıt Ol"),
                 ),
               ),
-
+              
               // Giriş Yap Linki
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Hesabınız var mı? "),
-                  TextButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => const LoginScreen()));
-                          },
-                    child: Text(
-                      "Giriş Yap",
-                      style: TextStyle(color: Colors.deepPurple.shade900),
-                    ),
+                  const Text(
+                    "Hesabınız var mı? ",
                   ),
+                  TextButton(
+                      onPressed: _isLoading ? null : () {
+                        Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const LoginScreen()));
+                      },
+                      child: Text(
+                        "Giriş Yap",
+                        style: TextStyle(color: Colors.deepPurple.shade900),
+                      )),
                 ],
-              )
+              ),
+              const SizedBox(height: 30),
             ],
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:binu_frontend/components/app_bar.dart';
+import 'package:binu_frontend/providers/auth_provider.dart';
 import 'package:binu_frontend/screens/login_screen.dart';
 import 'package:binu_frontend/screens/notifications_screen.dart';
 import 'package:flutter/material.dart';
@@ -9,7 +10,8 @@ import 'profile_screen.dart';
 import 'leaderboard_screen.dart';
 import 'messages_screen.dart';
 import 'reports_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Çıkış yapmak için
+import 'package:provider/provider.dart';
+
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -36,20 +38,22 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+ 
   void _handleProfileMenuSelection(String value) {
     switch (value) {
       case 'profile':
         if (_currentIndex != 2) {
           setState(() {
-            _currentIndex = 2;
+            _currentIndex = 2; 
           });
         }
         break;
       case 'logout':
-        FirebaseAuth.instance.signOut();
+       
+        Provider.of<AuthProvider>(context, listen: false).signOut();
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false, 
+          (route) => false,
         );
         break;
     }
@@ -57,6 +61,9 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    
+    final profileImageUrl = Provider.of<AuthProvider>(context).currentUser?.profileImageUrl ?? 'https://i.pravatar.cc/150?img=12';
+
     return Scaffold(
       appBar: CustomAppBar(
         showNotificationIcon: true,
@@ -66,7 +73,7 @@ class _MainScreenState extends State<MainScreen> {
               MaterialPageRoute(builder: (context) => const NotificationsScreen()));
         },
         onProfileMenuItemSelected: _handleProfileMenuSelection,
-        profileImageUrl: FirebaseAuth.instance.currentUser?.photoURL,
+        profileImageUrl: profileImageUrl,
       ),
       body: _screens[_currentIndex],
       bottomNavigationBar: CustomBottomNavigationBar(
@@ -76,4 +83,3 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
-

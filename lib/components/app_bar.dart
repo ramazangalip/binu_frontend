@@ -13,7 +13,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showProfileIcon = false,
     this.onNotificationPressed,
     this.profileImageUrl,
-    this.onProfileMenuItemSelected, 
+    this.onProfileMenuItemSelected,
   });
 
   @override
@@ -32,8 +32,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         Padding(
           padding: const EdgeInsets.only(right: 16.0),
           child: PopupMenuButton<String>(
-            onSelected: onProfileMenuItemSelected, 
-            offset: const Offset(0, 40), 
+            onSelected: onProfileMenuItemSelected,
+            offset: const Offset(0, 40),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               _buildPopupMenuItem(
@@ -50,6 +50,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 isDestructive: true,
               ),
             ],
+           
             child: CircleAvatar(
               radius: 18,
               backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl!) : null,
@@ -66,8 +67,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 1,
       centerTitle: true,
       title: Image.asset(
-        'assets/images/logo.png', 
-        width: 150,
+        'assets/images/logo.png',
+        width: 120,
         height: 100,
         fit: BoxFit.contain,
       ),
