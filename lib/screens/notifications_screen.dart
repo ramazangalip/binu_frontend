@@ -1,55 +1,25 @@
+import 'package:binu_frontend/services/notification_service.dart';
 import 'package:flutter/material.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({Key? key}) : super(key: key);
 
   @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  final NotificationService _notificationService = NotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Ekran her açıldığında listeyi güncellemek için setState tetiklenecek
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Tasarıma uygun, farklı bildirim türlerini içeren veri listesi
-    final List<Map<String, dynamic>> notifications = [
-      {
-        'type': 'like',
-        'user': 'Ayşe Yılmaz',
-        'avatar': 'https://i.pravatar.cc/150?img=2',
-        'content': 'bir gönderini beğendi.',
-        'time': '2 dakika önce',
-      },
-      {
-        'type': 'comment',
-        'user': 'Mehmet Demir',
-        'avatar': 'https://i.pravatar.cc/150?img=3',
-        'content': 'hakkındaki "Proje Takvimi" gönderine yorum yaptı.',
-        'time': '15 dakika önce',
-      },
-      {
-        'type': 'course_announcement',
-        'user': 'Prof. Dr. Elif Kaya',
-        'avatar': 'https://i.pravatar.cc/150?img=4',
-        'content': 'yeni bir ders duyurusu paylaştı.',
-        'time': '1 saat önce',
-      },
-      {
-        'type': 'follow',
-        'user': 'Caner Ekinci',
-        'avatar': 'https://i.pravatar.cc/150?img=5',
-        'content': 'seni takip etmeye başladı.',
-        'time': '3 saat önce',
-      },
-      {
-        'type': 'mention',
-        'user': 'Deniz Arslan',
-        'avatar': 'https://i.pravatar.cc/150?img=7',
-        'content': 'hakkındaki bir gönderide senden bahsetti.',
-        'time': 'Dün',
-      },
-      {
-        'type': 'project_update',
-        'user': 'Emre Gündoğdu',
-        'avatar': 'https://i.pravatar.cc/150?img=8',
-        'content': 'gönderini "Bitirme Projesi" panosuna ekledi.',
-        'time': '2 gün önce',
-      },
-    ];
+    final notifications = _notificationService.notifications;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -58,31 +28,56 @@ class NotificationsScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0.5,
+        actions: [
+           IconButton(
+             icon: const Icon(Icons.done_all),
+             tooltip: 'Tümünü Okundu İşaretle',
+             onPressed: () {
+               setState(() {
+                 _notificationService.markAllAsRead();
+               });
+               ScaffoldMessenger.of(context).showSnackBar(
+                 const SnackBar(content: Text('Tüm bildirimler okundu olarak işaretlendi.')),
+               );
+             },
+           ),
+        ],
       ),
-      body: ListView.separated(
-        itemCount: notifications.length,
-        itemBuilder: (context, index) {
-          final notification = notifications[index];
-          return _buildNotificationTile(
-            context,
-            notification['user'],
-            notification['content'],
-            notification['avatar'],
-            notification['time'],
-            notification['type'],
-          );
-        },
-        separatorBuilder: (context, index) => Divider(
-          height: 1,
-          thickness: 1,
-          color: Colors.grey[100],
-          indent: 70, // Avatar ve ikon genişliği kadar boşluk
-        ),
-      ),
+      body: notifications.isEmpty 
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey[300]),
+                const SizedBox(height: 16),
+                Text('Henüz bildirim yok', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+              ],
+            ),
+          )
+        : ListView.separated(
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              return _buildNotificationTile(
+                context,
+                notification['user'],
+                notification['content'],
+                notification['avatar'],
+                notification['time'],
+                notification['type'],
+                notification['isRead'],
+              );
+            },
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              thickness: 1,
+              color: Colors.grey[100],
+              indent: 70,
+            ),
+          ),
     );
   }
 
-  // Her bir bildirim satırını oluşturan widget
   Widget _buildNotificationTile(
     BuildContext context,
     String user,
@@ -90,8 +85,8 @@ class NotificationsScreen extends StatelessWidget {
     String avatarUrl,
     String time,
     String type,
+    bool isRead,
   ) {
-    // Bildirim türüne göre ikonu ve rengi belirle
     final IconData iconData;
     final Color iconColor;
 
@@ -117,51 +112,57 @@ class NotificationsScreen extends StatelessWidget {
         iconColor = Colors.grey;
     }
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      leading: Stack(
-        alignment: Alignment.bottomRight,
-        children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundImage: NetworkImage(avatarUrl),
-          ),
-          Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: iconColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+    return Container(
+      color: isRead ? Colors.white : Colors.blue.shade50.withOpacity(0.4), // Okunmamışlar hafif mavi
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        leading: Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            CircleAvatar(
+              radius: 25,
+              backgroundImage: NetworkImage(avatarUrl),
             ),
-            child: Icon(iconData, size: 14, color: Colors.white),
-          ),
-        ],
-      ),
-      title: RichText(
-        text: TextSpan(
-          style: DefaultTextStyle.of(context).style,
-          children: <TextSpan>[
-            TextSpan(
-              text: '$user ',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            TextSpan(
-              text: content,
-              style: const TextStyle(fontSize: 15),
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: iconColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Icon(iconData, size: 14, color: Colors.white),
             ),
           ],
         ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4.0),
-        child: Text(
-          time,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+        title: RichText(
+          text: TextSpan(
+            style: DefaultTextStyle.of(context).style,
+            children: <TextSpan>[
+              TextSpan(
+                text: '$user ',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              TextSpan(
+                text: content,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ],
+          ),
         ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            time,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ),
+        trailing: !isRead 
+            ? const CircleAvatar(radius: 4, backgroundColor: Colors.red) 
+            : null,
+        onTap: () {
+        
+        },
       ),
-      onTap: () {
-        // Bildirime tıklanınca ilgili sayfaya gitme mantığı eklenebilir
-      },
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io'; 
+import 'package:binu_frontend/models/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_model.dart';
@@ -151,6 +152,145 @@ class ApiService {
   }
   
   
-  Future<List<Map<String, dynamic>>> fetchPosts() async => [];
+ 
   Future<void> toggleLike(int postId) async {}
+
+ Future<List<Post>> getPosts() async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/posts/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+        return jsonData.map((json) => Post.fromJson(json)).toList();
+      } else {
+        throw Exception('Postlar yüklenemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Postlar yüklenirken hata oluştu: $e');
+    }
+  }
+
+  Future<Post> getPost(int postId) async {
+    try {
+      final token = await _getToken();
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/posts/$postId/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return Post.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      } else {
+        throw Exception('Post yüklenemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Post yüklenirken hata oluştu: $e');
+    }
+  }
+
+  // Yeni post oluştur
+  Future<Post> createPost({
+    required String textContent,
+    String? imageUrl,
+  }) async {
+    try {
+      final token = await _getToken();
+      
+      if (token == null) {
+        throw Exception('Giriş yapmanız gerekiyor');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/posts/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'textcontent': textContent,
+          if (imageUrl != null) 'imageurl': imageUrl,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return Post.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      } else {
+        throw Exception('Post oluşturulamadı: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Post oluşturulurken hata oluştu: $e');
+    }
+  }
+
+  // Post'u beğen/beğeniyi kaldır
+  Future<Map<String, dynamic>> likePost(int postId) async {
+    try {
+      final token = await _getToken();
+      
+      if (token == null) {
+        throw Exception('Giriş yapmanız gerekiyor');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/posts/$postId/like/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(utf8.decode(response.bodyBytes));
+      } else {
+        throw Exception('Beğeni işlemi başarısız: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Beğeni işleminde hata oluştu: $e');
+    }
+  }
+
+  // Post'a yorum ekle
+  Future<Comment> addComment({
+    required int postId,
+    required String commentText,
+  }) async {
+    try {
+      final token = await _getToken();
+      
+      if (token == null) {
+        throw Exception('Giriş yapmanız gerekiyor');
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/posts/$postId/comments/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'commenttext': commentText,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return Comment.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+      } else {
+        throw Exception('Yorum eklenemedi: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Yorum eklenirken hata oluştu: $e');
+    }
+  }
 }
