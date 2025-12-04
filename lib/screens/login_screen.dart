@@ -18,7 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _isLoading = false; 
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -33,7 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-    
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       final success = await authProvider.signIn(
@@ -43,7 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success) {
         if (mounted) {
-          
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               behavior: SnackBarBehavior.floating,
@@ -59,25 +57,23 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else {
-     
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.red,
-              content: Text('Hata: E-posta veya şifre hatalı.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              content: const Text('Hata: E-posta veya şifre hatalı.'),
             ),
           );
         }
       }
     } catch (e) {
-    
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            content: Text('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            content: const Text('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.'),
           ),
         );
       }
@@ -90,6 +86,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Tema renklerini al
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       appBar: const CustomAppBar(),
       body: Form(
@@ -98,9 +98,11 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 60),
-              const Text(
+              Text(
                 "Giriş Yap",
-                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                style: textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               // 📧 E-posta alanı
@@ -112,9 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    ),
                     prefixIcon: Icon(Icons.email_outlined),
                     labelText: 'Üniversite E-postanız',
                   ),
@@ -137,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              
+              // 🔒 Şifre alanı
               Container(
                 width: 375,
                 height: 50,
@@ -146,9 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    ),
                     prefixIcon: Icon(Icons.lock_outline),
                     labelText: 'Şifreniz',
                   ),
@@ -163,14 +159,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
               ),
-              
-            
+
+              // Şifremi unuttum
               Padding(
                 padding: const EdgeInsets.only(right: 20.0, top: 10.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text("Parolanızı mı unuttunuz?"),
+                    Text(
+                      "Parolanızı mı unuttunuz?",
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -182,7 +183,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                       child: Text(
                         "Sıfırla",
-                        style: TextStyle(color: Colors.deepPurple.shade900),
+                        style: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -196,25 +200,22 @@ class _LoginScreenState extends State<LoginScreen> {
                 margin: const EdgeInsets.only(left: 20, right: 20, top: 10),
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _login,
-                  style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all<Color>(
-                      Colors.deepPurple.shade900,
-                    ),
-                    foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
-                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                      RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                      ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    disabledBackgroundColor: colorScheme.primary.withOpacity(0.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.0),
                     ),
                   ),
                   child: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
-                            color: Colors.white, 
+                            color: colorScheme.onPrimary,
                             strokeWidth: 2,
-                          )
+                          ),
                         )
                       : const Text("Giriş Yap"),
                 ),
@@ -222,11 +223,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 20),
 
-             
+              // Kayıt ol linki
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Hesabınız yok mu? "),
+                  Text(
+                    "Hesabınız yok mu? ",
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
@@ -238,12 +244,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                     child: Text(
                       "Kayıt Ol",
-                      style: TextStyle(color: Colors.deepPurple.shade900),
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 30),
             ],
           ),

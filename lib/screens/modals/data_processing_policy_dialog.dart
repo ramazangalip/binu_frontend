@@ -7,14 +7,22 @@ class DataProcessingPolicyDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tema verilerini alalım
+    final ThemeData theme = Theme.of(context);
+
     return AlertDialog(
-      title: const Text("Veri İşleme Politikası"),
+      // 1. AlertDialog'un şekli ve arka planı tema tarafından otomatik yönetilir.
+      title: Text(
+        "Veri İşleme Politikası",
+        // Başlık metnini temadan alalım.
+        style: theme.textTheme.headlineMedium, 
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 "3. VERİ İŞLEME POLİTİKASI (FINAL)\n\n"
                 "3.1. Amaç\n"
@@ -29,22 +37,26 @@ class DataProcessingPolicyDialog extends StatelessWidget {
                 "Veriler, mezuniyet/ayrılıktan sonra 2 yıl saklanır ve sonrasında imha edilir.\n\n"
                 "3.7. Teknik Tedbirler\n"
                 "Şifreleme, güvenlik duvarı, loglama.",
-                style: TextStyle(fontSize: 14),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // Yalnızca boyutunu sabit tuttuk, rengini temaya bıraktık.
+                  fontSize: 14, 
+                ),
               ),
             ],
           ),
         ),
       ),
       actions: [
+        // 2. TextButton: Rengi tema tarafından (genellikle primaryColor) belirlenir.
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text("Kapat"),
         ),
+        
+        // 3. Kabul Et Butonu: Stilini AppTheme'da tanımladığımız ElevatedButtonTheme'dan alalım.
+        // Artık sabit Colors.deepPurple.shade900 ve Colors.white kullanmaya gerek yok!
         ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple.shade900,
-            foregroundColor: Colors.white,
-          ),
+          // ElevatedButton'a herhangi bir style vermemek, global temayı kullanmasını sağlar.
           onPressed: () {
             onAccepted();
             Navigator.of(context).pop();

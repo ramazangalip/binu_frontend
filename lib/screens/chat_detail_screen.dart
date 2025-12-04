@@ -27,7 +27,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       'isMe': true,
       'time': DateTime.now().subtract(const Duration(minutes: 2)),
     },
-     {
+    {
       'text': 'Raporun son teslim tarihi ne zamandı?',
       'isMe': false,
       'time': DateTime.now().subtract(const Duration(minutes: 1)),
@@ -59,26 +59,39 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka planı temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        // AppBar rengi temadan (AppTheme'daki appBarTheme) otomatik alınacak,
+        // bu yüzden elle backgroundColor ataması kaldırıldı.
+        // elevation: 0.5 temayla çakışmaması için kaldırılabilir veya bırakılabilir
+        elevation: 1, 
         title: Row(
           children: [
             CircleAvatar(
               radius: 18,
               backgroundImage: NetworkImage(widget.avatarUrl),
+              backgroundColor: colorScheme.surfaceVariant, // Avatar placeholder rengi
             ),
             const SizedBox(width: 12),
             Text(
               widget.userName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              // Metin stilini temadan al
+              style: theme.textTheme.headlineSmall?.copyWith(fontSize: 18),
             ),
           ],
         ),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.more_vert)),
+          // İkon rengi temadan (AppTheme'daki foregroundColor) otomatik alınır
+          IconButton(
+            onPressed: () {}, 
+            icon: const Icon(Icons.more_vert),
+            color: colorScheme.onPrimaryContainer,
+          ), 
         ],
       ),
       body: Column(
@@ -90,17 +103,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final msg = _messages[index];
-                return _buildMessageBubble(msg['text'], msg['isMe'], msg['time']);
+                return _buildMessageBubble(msg['text'], msg['isMe'], msg['time'], colorScheme);
               },
             ),
           ),
-          _buildMessageComposer(),
+          _buildMessageComposer(colorScheme, theme),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(String text, bool isMe, DateTime time) {
+  Widget _buildMessageBubble(String text, bool isMe, DateTime time, ColorScheme colorScheme) {
+    // Mesaj balonunun arka plan renkleri
+    final Color bubbleColor = isMe 
+      ? colorScheme.primary // Benim mesajım: Tema ana rengi
+      : colorScheme.surfaceVariant; // Karşı tarafın mesajı: Tema yüzey varyant rengi
+      
+    // Mesaj balonunun içindeki metin renkleri
+    final Color textColor = isMe 
+      ? colorScheme.onPrimary // Ana renk üzerinde kontrast renk (genellikle beyaz)
+      : colorScheme.onSurface; // Yüzey rengi üzerinde kontrast renk (genellikle siyah/koyu gri)
+
+    // Zaman metni rengi
+    final Color timeColor = isMe 
+      ? colorScheme.onPrimary.withOpacity(0.7) 
+      : colorScheme.onSurfaceVariant;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -108,12 +136,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
         decoration: BoxDecoration(
-          color: isMe ? Colors.deepPurple.shade900 : Colors.grey.shade200,
+          color: bubbleColor,
           borderRadius: BorderRadius.only(
-             topLeft: const Radius.circular(20),
-             topRight: const Radius.circular(20),
-             bottomLeft: isMe ? const Radius.circular(20) : Radius.zero,
-             bottomRight: isMe ? Radius.zero : const Radius.circular(20),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: isMe ? const Radius.circular(20) : Radius.zero,
+            bottomRight: isMe ? Radius.zero : const Radius.circular(20),
           ),
         ),
         child: Column(
@@ -122,7 +150,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             Text(
               text,
               style: TextStyle(
-                color: isMe ? Colors.white : Colors.black87,
+                color: textColor, // Dinamik metin rengi
                 fontSize: 16,
               ),
             ),
@@ -131,7 +159,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               DateFormat('HH:mm').format(time),
               style: TextStyle(
                 fontSize: 11,
-                color: isMe ? Colors.white70 : Colors.black54,
+                color: timeColor, // Dinamik zaman rengi
               ),
             ),
           ],
@@ -140,12 +168,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildMessageComposer() {
+  Widget _buildMessageComposer(ColorScheme colorScheme, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      // Düzeltme: Arka plan rengi (colorScheme.surface) BoxDecoration içine taşındı.
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: colorScheme.surface, 
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: SafeArea(
         child: Row(
@@ -153,10 +182,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             Expanded(
               child: TextField(
                 controller: _controller,
+                // Yazı rengi temadan otomatik gelecek
                 decoration: InputDecoration(
                   hintText: 'Mesaj yaz...',
-                  filled: true,
-                  fillColor: Colors.white,
+                  // Yazı alanı arka planı temadan al (surfaceVariant)
+                  fillColor: colorScheme.surfaceVariant, 
+                  // hintText rengi temadan al
+                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant), 
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30.0),
                     borderSide: BorderSide.none,
@@ -168,7 +200,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             ),
             const SizedBox(width: 8),
             IconButton(
-              icon: Icon(Icons.send, color: Colors.deepPurple.shade900),
+              // İkon rengini temadan al (ana renk)
+              icon: Icon(Icons.send, color: colorScheme.primary), 
               onPressed: _sendMessage,
             ),
           ],
@@ -177,4 +210,3 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 }
-

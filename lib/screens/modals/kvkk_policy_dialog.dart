@@ -7,14 +7,22 @@ class KvkkPolicyDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tema verilerini alalım
+    final ThemeData theme = Theme.of(context);
+
     return AlertDialog(
-      title: const Text("KVKK Aydınlatma Metni"),
+      // AlertDialog'un arka planı ve ana metin rengi tema tarafından yönetilir.
+      title: Text(
+        "KVKK Aydınlatma Metni",
+        // Başlık metnini temadan alalım.
+        style: theme.textTheme.headlineMedium,
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 "1. GİZLİLİK POLİTİKASI \n\n"
                 "1.1. Amaç ve Kapsam\n"
@@ -36,22 +44,24 @@ class KvkkPolicyDialog extends StatelessWidget {
                 "Açık Rıza Beyanı:\n"
                 "“Bingöl Üniversitesi tarafından yönetilen Binu Sosyal Medya Uygulaması kapsamında, KVKK Aydınlatma Metni’ni okudum ve anladım. "
                 "Profil bilgilerim, kullanım verilerim ve uygulama etkileşimlerimin; uygulama fonksiyonlarının sağlanması amacıyla işlenmesine açık rıza veriyorum.”",
-                style: TextStyle(fontSize: 14),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // Yalnızca boyutunu sabit tuttuk, rengini temaya bıraktık.
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
         ),
       ),
       actions: [
+        // Kapat Butonu: TextButton olduğu için stili tema tarafından otomatik yönetilir.
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text("Kapat"),
         ),
+        // Kabul Butonu: Sabit stil kaldırıldı, AppTheme'daki Elevated Button teması kullanılacak.
         ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple.shade900,
-            foregroundColor: Colors.white,
-          ),
+          // style: ElevatedButton.styleFrom(...) bloğu kaldırıldı.
           onPressed: () {
             onAccepted();
             Navigator.of(context).pop();

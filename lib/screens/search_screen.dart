@@ -84,11 +84,15 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
+        // AppBar'ın rengi ve stili AppTheme'dan otomatik gelir
         toolbarHeight: 0,
-        backgroundColor: Colors.white,
         elevation: 0,
       ),
       body: SafeArea(
@@ -96,20 +100,21 @@ class _SearchScreenState extends State<SearchScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Arama Kutusu
-            _buildSearchBar(),
+            _buildSearchBar(theme, colorScheme),
             
             // Kategori Filtreleri
-            _buildCategoryFilters(),
+            _buildCategoryFilters(theme, colorScheme),
 
             // İçerik Listesi
             Expanded(
               child: _filteredCourses.isEmpty
-                  ? const Center(child: Text("Sonuç bulunamadı 😔"))
+                  // Metin rengi temadan gelecek
+                  ? Center(child: Text("Sonuç bulunamadı 😔", style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant))) 
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: _filteredCourses.length,
                       itemBuilder: (context, index) {
-                        return _buildCourseCard(_filteredCourses[index]);
+                        return _buildCourseCard(_filteredCourses[index], theme, colorScheme);
                       },
                     ),
             ),
@@ -120,33 +125,25 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // Arama Kutusu Widget'ı
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ThemeData theme, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: TextField(
         controller: _searchController,
         onChanged: (value) => setState(() => _query = value),
+        // Decoration stili AppTheme'dan geliyor.
         decoration: InputDecoration(
           hintText: 'Dersler, konular veya öğretmenler ara...',
-          prefixIcon: const Icon(Icons.search),
-          filled: true,
-          fillColor: Colors.white,
+          prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.6)),
+          // fillColor, border ve enabledBorder stilleri AppTheme'dan geliyor.
           contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
         ),
       ),
     );
   }
 
   // Kategori Filtreleri Widget'ı
-  Widget _buildCategoryFilters() {
+  Widget _buildCategoryFilters(ThemeData theme, ColorScheme colorScheme) {
     return SizedBox(
       height: 40,
       child: ListView.builder(
@@ -168,14 +165,20 @@ class _SearchScreenState extends State<SearchScreen> {
                   });
                 }
               },
-              selectedColor: Colors.deepPurple.shade900,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
+              // Seçili renk temadan çekilecek (primary)
+              selectedColor: colorScheme.primary, 
+              labelStyle: theme.textTheme.labelMedium?.copyWith(
+                // Seçili metin rengi temadan çekilecek (onPrimary)
+                color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
               ),
-              backgroundColor: Colors.white,
+              // Arka plan rengi temadan çekilecek (surface)
+              backgroundColor: colorScheme.surface, 
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: isSelected ? Colors.transparent : Colors.grey.shade300),
+                side: BorderSide(
+                  // Seçili değilken çerçeve rengi temadan çekilecek
+                  color: isSelected ? Colors.transparent : colorScheme.outlineVariant,
+                ),
               ),
             ),
           );
@@ -185,12 +188,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // Ders Kartı Widget'ı
-  Widget _buildCourseCard(Map<String, dynamic> course) {
+  Widget _buildCourseCard(Map<String, dynamic> course, ThemeData theme, ColorScheme colorScheme) {
     return Card(
+      // Kart rengi ve gölge CardTheme'dan otomatik gelir.
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
-      shadowColor: Colors.grey.withOpacity(0.1),
+      shadowColor: colorScheme.shadow.withOpacity(theme.brightness == Brightness.light ? 0.1 : 0.4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -204,9 +207,22 @@ class _SearchScreenState extends State<SearchScreen> {
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => Container(
                 height: 150,
-                color: Colors.grey.shade200,
-                child: const Center(child: Icon(Icons.image_not_supported, color: Colors.grey)),
+                // Hata arka planı temadan al
+                color: colorScheme.surfaceVariant, 
+                child: Center(
+                  // Hata ikonu rengi temadan al
+                  child: Icon(Icons.image_not_supported, color: colorScheme.onSurfaceVariant)
+                ),
               ),
+              // Yüklenirken de temaya uygun bir renk gösterilebilir
+              loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 150,
+                    color: colorScheme.surfaceVariant,
+                    child: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+                  );
+              },
             ),
           ),
           // Kart İçeriği
@@ -217,20 +233,41 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 Text(
                   course['title'],
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: 18, 
+                    fontWeight: FontWeight.bold,
+                    // Başlık metin rengini temadan al
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   course['description'],
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 14, 
+                    // Açıklama metin rengini temadan al
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    _buildTag(course['type'], Colors.blue.shade50, Colors.blue.shade800),
+                    // Tip etiketi (Mavi)
+                    _buildTag(
+                      course['type'], 
+                      colorScheme.primaryContainer, 
+                      colorScheme.onPrimaryContainer,
+                      theme
+                    ),
                     const SizedBox(width: 8),
+                    // Etiketler (Gri)
                     ...(course['tags'] as List<String>).map((tag) => 
-                      _buildTag(tag, Colors.grey.shade200, Colors.grey.shade800)
+                      _buildTag(
+                        tag, 
+                        colorScheme.surfaceVariant, 
+                        colorScheme.onSurfaceVariant,
+                        theme
+                      )
                     ).toList(),
                   ],
                 ),
@@ -243,7 +280,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
 
-  Widget _buildTag(String text, Color bgColor, Color textColor) {
+  Widget _buildTag(String text, Color bgColor, Color textColor, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -252,7 +289,7 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: theme.textTheme.labelSmall?.copyWith(
           color: textColor,
           fontSize: 12,
           fontWeight: FontWeight.w500,

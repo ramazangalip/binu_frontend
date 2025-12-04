@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-
-
-import 'package:image_picker/image_picker.dart'; 
+// import 'package:image_picker/image_picker.dart'; // Resim seçme için gerekebilir
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -34,24 +32,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
   
 
-
-
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
       appBar: AppBar(
         title: const Text('Profili Düzenle'),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        // AppBar stili AppTheme'dan otomatik gelir
         elevation: 0.5,
+        // İkon rengi temadan gelir
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check, color: Colors.blue),
+            icon: Icon(
+              Icons.check, 
+              // İkon rengini temadan al
+              color: colorScheme.primary
+            ),
             onPressed: () {
               // TODO: Değişiklikleri kaydetme mantığını buraya ekle
               Navigator.of(context).pop(); // Şimdilik sadece geri dön
@@ -65,7 +70,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           key: _formKey,
           child: Column(
             children: [
-              _buildProfilePictureEditor(),
+              _buildProfilePictureEditor(colorScheme),
               const SizedBox(height: 32),
               _buildTextFormField(
                 controller: _nameController,
@@ -76,24 +81,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   }
                   return null;
                 },
+                theme: theme,
               ),
               const SizedBox(height: 20),
               _buildTextFormField(
                 controller: _usernameController,
                 labelText: 'Kullanıcı Adı',
                 prefixText: '@',
-                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Kullanıcı Adı boş bırakılamaz.';
-                  }
-                  return null;
-                },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Kullanıcı Adı boş bırakılamaz.';
+                    }
+                    return null;
+                  },
+                theme: theme,
               ),
               const SizedBox(height: 20),
               _buildTextFormField(
                 controller: _bioController,
                 labelText: 'Bio',
                 maxLines: 4,
+                theme: theme,
               ),
             ],
           ),
@@ -102,22 +110,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildProfilePictureEditor() {
+  Widget _buildProfilePictureEditor(ColorScheme colorScheme) {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
-        const CircleAvatar(
+        CircleAvatar(
           radius: 60,
-          backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=12'),
+          backgroundImage: const NetworkImage('https://i.pravatar.cc/150?img=12'),
+          // Avatar placeholder rengini temadan al
+          backgroundColor: colorScheme.surfaceVariant, 
         ),
         Container(
           decoration: BoxDecoration(
-            color: Colors.blue,
+            // Arka plan rengini temadan al
+            color: colorScheme.primary, 
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
+            // Çerçeve rengini temadan al
+            border: Border.all(color: colorScheme.background, width: 2), 
           ),
           child: IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+            // İkon rengi temadan (onPrimary) alınır, genelde beyaz
+            icon: Icon(Icons.edit, color: colorScheme.onPrimary, size: 20),
             onPressed: () {
               // _pickImage(); // Resim seçme fonksiyonunu çağır
             },
@@ -130,10 +143,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildTextFormField({
     required TextEditingController controller,
     required String labelText,
+    required ThemeData theme,
     String? prefixText,
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
+    // TextFormField'lar AppTheme'da tanımlanan InputDecorationTheme'ı kullanır.
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
@@ -141,11 +156,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         labelText: labelText,
         prefixText: prefixText,
         alignLabelWithHint: true,
+        // Border stili AppTheme'dan gelir.
+        // Eğer AppTheme'da border tanımlanmamışsa, bu blok varsayılan olarak kullanılır.
+        // Ama biz AppTheme'da tanımladığımız için bu satırları kaldırmalıyız.
+        // Ancak bu fonksiyon TextFormfield'ları manuel oluşturduğu için:
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        // Odaklanma rengi temadan gelecek
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        ),
+        // Prefix metin stili
+        prefixStyle: theme.textTheme.bodyLarge?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        )
       ),
-       validator: validator,
+        validator: validator,
     );
   }
 }

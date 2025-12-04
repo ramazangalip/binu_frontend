@@ -18,6 +18,10 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tema renklerini al
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     Widget? leadingIcon;
     if (showNotificationIcon) {
       leadingIcon = IconButton(
@@ -34,7 +38,11 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           child: PopupMenuButton<String>(
             onSelected: onProfileMenuItemSelected,
             offset: const Offset(0, 40),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            // Popup menu renkleri temaya göre ayarlanır
+            color: colorScheme.surface,
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               _buildPopupMenuItem(
                 context,
@@ -50,12 +58,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 isDestructive: true,
               ),
             ],
-           
             child: CircleAvatar(
               radius: 18,
-              backgroundImage: profileImageUrl != null ? NetworkImage(profileImageUrl!) : null,
-              child: profileImageUrl == null ? const Icon(Icons.person, size: 20) : null,
-              backgroundColor: Colors.grey.shade200,
+              backgroundImage: profileImageUrl != null 
+                ? NetworkImage(profileImageUrl!) 
+                : null,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+              foregroundColor: colorScheme.onSurfaceVariant,
+              child: profileImageUrl == null 
+                ? const Icon(Icons.person, size: 20) 
+                : null,
             ),
           ),
         ),
@@ -63,20 +75,26 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
 
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 1,
+      // Tema ayarlarından background color alınır
+      backgroundColor: colorScheme.surface,
+      // Koyu modda elevation daha belirgin olur
+      elevation: isDark ? 2 : 1,
+      // Icon renkleri otomatik temaya uyum sağlar
+      foregroundColor: colorScheme.onSurface,
       centerTitle: true,
       title: Image.asset(
         'assets/images/logo.png',
         width: 120,
         height: 100,
         fit: BoxFit.contain,
+        // Koyu modda logo rengi ayarlanabilir (opsiyonel)
+        color: isDark ? Colors.white : null,
+        colorBlendMode: isDark ? BlendMode.modulate : null,
       ),
       leading: leadingIcon,
       actions: actionIcons.isNotEmpty ? actionIcons : null,
     );
   }
-
 
   PopupMenuItem<String> _buildPopupMenuItem(
     BuildContext context, {
@@ -85,18 +103,31 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     required String text,
     bool isDestructive = false,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return PopupMenuItem<String>(
       value: value,
       child: Row(
         children: [
-          Icon(icon, color: isDestructive ? Colors.red : Theme.of(context).iconTheme.color),
+          Icon(
+            icon,
+            color: isDestructive 
+              ? colorScheme.error 
+              : colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 12),
-          Text(text, style: TextStyle(color: isDestructive ? Colors.red : null)),
+          Text(
+            text,
+            style: TextStyle(
+              color: isDestructive 
+                ? colorScheme.error 
+                : colorScheme.onSurface,
+            ),
+          ),
         ],
       ),
     );
   }
-
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);

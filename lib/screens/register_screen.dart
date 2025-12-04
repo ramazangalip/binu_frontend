@@ -69,6 +69,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _registerUser() async {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     // 1. Form Validasyonu
     if (!_formKey.currentState!.validate()) {
       return; 
@@ -77,10 +79,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // 2. Sözleşme Onay Kontrolü
     if (!_isKvkkAccepted || !_isUserAgreementAccepted || !_isDataPolicyAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
-          content: Text('Lütfen tüm sözleşmeleri okuyup onaylayınız.'),
+          // Hata rengini temadan al
+          backgroundColor: colorScheme.error,
+          content: Text(
+            'Lütfen tüm sözleşmeleri okuyup onaylayınız.', 
+            style: TextStyle(color: colorScheme.onError)
+          ),
         ),
       );
       return;
@@ -97,7 +103,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
       // Kayıt İsteği
-      // Backend, e-posta adresine göre bölümü otomatik atayacaktır.
       final success = await authProvider.register(
         _emailController.text.trim(), 
         _usernameController.text.trim(), 
@@ -111,8 +116,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               behavior: SnackBarBehavior.floating,
-              backgroundColor: Color(0xFF4CAF50),
-              content: Text('Kayıt başarılı! Şimdi giriş yapabilirsiniz.'),
+              // Başarı rengi
+              backgroundColor: Colors.green,
+              content: Text(
+                'Kayıt başarılı! Şimdi giriş yapabilirsiniz.',
+                style: TextStyle(color: Colors.white)
+              ),
             ),
           );
           
@@ -129,19 +138,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final errorString = e.toString().toLowerCase();
       
       if (errorString.contains('already used') || errorString.contains('unique constraint')) {
-         message = "Bu kullanıcı adı veya e-posta zaten kayıtlı.";
+          message = "Bu kullanıcı adı veya e-posta zaten kayıtlı.";
       } else if (errorString.contains('length')) {
-         message = "Şifre çok kısa veya alanlar hatalı.";
+          message = "Şifre çok kısa veya alanlar hatalı.";
       } else {
-         message = "Hata: ${e.toString().replaceAll('Exception:', '')}";
+          message = "Hata: ${e.toString().replaceAll('Exception:', '')}";
       }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-            content: Text(message),
+            // Hata rengini temadan al
+            backgroundColor: colorScheme.error,
+            content: Text(
+              message,
+              style: TextStyle(color: colorScheme.onError)
+            ),
           ),
         );
       }
@@ -184,6 +197,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String text,
     required VoidCallback onTap,
   }) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final ThemeData theme = Theme.of(context);
+    
     return Container(
       margin: const EdgeInsets.only(top: 10),
       child: Row(
@@ -194,7 +210,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             width: 24,
             child: Checkbox(
               value: value,
-              activeColor: Colors.deepPurple.shade900,
+              // Checkbox aktif rengini temadan al
+              activeColor: colorScheme.primary,
               onChanged: onChanged,
             ),
           ),
@@ -204,17 +221,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onTap: onTap,
               child: RichText(
                 text: TextSpan(
-                  style: const TextStyle(fontSize: 14, height: 1.4, color: Colors.black87),
+                  // Varsayılan metin stili temadan al
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.4, 
+                    color: colorScheme.onSurface,
+                  ),
                   children: [
                     TextSpan(
                       text: text,
                       style: TextStyle(
-                        color: Colors.deepPurple.shade900,
+                        // Link rengini temadan al
+                        color: colorScheme.primary, 
                         fontWeight: FontWeight.bold,
                         decoration: TextDecoration.underline,
                       ),
                     ),
-                    const TextSpan(text: "'nı okudum ve kabul ediyorum."),
+                    // Kalan metin için onSurface rengini kullan
+                    TextSpan(text: "'nı okudum ve kabul ediyorum.", 
+                      style: TextStyle(color: colorScheme.onSurface)
+                    ),
                   ],
                 ),
               ),
@@ -227,7 +252,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
+      // Scaffold arka planı varsayılan olarak temadan gelir.
       appBar: const CustomAppBar(),
       body: Form(
         key: _formKey,
@@ -237,20 +266,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               Container(
                 margin: const EdgeInsets.only(top: 60),
-                child: const Text(
+                child: Text(
                   "Kayıt Ol",
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontSize: 30, 
+                    fontWeight: FontWeight.bold,
+                    // Metin rengini temadan al
+                    color: colorScheme.onSurface, 
+                  ),
                 ),
               ),
               
-              // Form Alanları (Ad Soyad, Kullanıcı Adı, E-posta, Şifre)
+              // Form Alanları (AppTheme'daki inputDecorationTheme'ı kullanacak)
               Container(
                 width: 375,
                 margin: const EdgeInsets.only(top: 60),
                 child: TextFormField(
                   controller: _fullNameController,
+                  // InputDecoration stili AppTheme'dan geliyor.
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
                     prefixIcon: Icon(Icons.person_outline),
                     labelText: 'Ad Soyad',
                   ),
@@ -263,7 +297,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: TextFormField(
                   controller: _usernameController,
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
                     prefixIcon: Icon(Icons.alternate_email),
                     labelText: 'Kullanıcı Adı',
                   ),
@@ -277,7 +310,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
                     prefixIcon: Icon(Icons.email_outlined),
                     labelText: 'Üniversite E-postanız',
                   ),
@@ -291,7 +323,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10.0))),
                     prefixIcon: Icon(Icons.lock_outline),
                     labelText: 'Şifreniz',
                   ),
@@ -326,15 +357,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 margin: const EdgeInsets.only(top: 25),
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _registerUser,
-                  style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all<Color>(Colors.deepPurple.shade900),
-                    foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
-                    shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-                    ),
-                  ),
+                  // Stil bloğu kaldırıldı. Bu sayede stil AppTheme'daki elevatedButtonTheme'dan gelecek.
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? SizedBox(
+                          width: 20, 
+                          height: 20, 
+                          child: CircularProgressIndicator(
+                            // Yüklenme göstergesi rengini temadan al
+                            color: colorScheme.onPrimary, 
+                            strokeWidth: 2
+                          )
+                        )
                       : const Text("Kayıt Ol"),
                 ),
               ),
@@ -343,14 +376,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Hesabınız var mı? "),
+                  Text(
+                    "Hesabınız var mı? ",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      // Metin rengini temadan al
+                      color: colorScheme.onSurface, 
+                    ),
+                  ),
                   TextButton(
                       onPressed: _isLoading ? null : () {
                         Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => const LoginScreen()));
                       },
-                      child: Text("Giriş Yap", style: TextStyle(color: Colors.deepPurple.shade900))),
+                      // TextButton rengi temadan otomatik (primary) gelir
+                      child: const Text("Giriş Yap")
+                  ),
                 ],
               ),
               const SizedBox(height: 30),

@@ -28,11 +28,15 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka planı temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
       appBar: AppBar(
         title: const Text('Ders Detayı'),
-        backgroundColor: Colors.white,
+        // Arka plan rengi ve metin rengi AppTheme'dan otomatik alınır
         elevation: 0.5,
       ),
       body: SingleChildScrollView(
@@ -56,19 +60,36 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                           },
                           child: Icon(
                             _controller.value.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                            // Oynat/Durdur ikonu rengi
                             color: Colors.white.withOpacity(0.7),
                             size: 60,
                           ),
                         ),
-                        VideoProgressIndicator(_controller, allowScrubbing: true),
+                        // Video ilerleme çubuğunun rengi temadan alınacak
+                        VideoProgressIndicator(
+                          _controller, 
+                          allowScrubbing: true,
+                          colors: VideoProgressColors(
+                            // Yüklü tampon rengi temadan (onSurfaceVariant) alınır
+                            bufferedColor: colorScheme.onSurfaceVariant.withOpacity(0.4), 
+                            // Oynatma rengi temadan (primary) alınır
+                            playedColor: colorScheme.primary, 
+                            // Arka plan rengi temadan (surfaceVariant) alınır
+                            backgroundColor: colorScheme.surfaceVariant, 
+                          ),
+                        ),
                       ],
                     ),
                   )
                 : Container(
                     height: 200,
-                    color: Colors.black,
-                    child: const Center(
-                      child: CircularProgressIndicator(),
+                    // Video yüklenirken arka plan rengi
+                    color: colorScheme.surfaceVariant, 
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        // Yüklenme göstergesi rengi temadan alınır
+                        color: colorScheme.primary,
+                      ),
                     ),
                   ),
 
@@ -78,20 +99,21 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Python ile Veri Yapıları ve Algoritmalar',
-                    style: TextStyle(
+                    // Başlık stilini temadan al
+                    style: theme.textTheme.displaySmall?.copyWith(
                       fontSize: 24,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'Bu derste, programlamanın temel taşlarından olan veri yapıları ve algoritmalar konusunu Python programlama dili üzerinden A\'dan Z\'ye ele alacağız.\n\nListeler, sözlükler, demetler gibi temel veri yapılarından başlayarak, stack, queue, linked list gibi daha ileri seviye konulara geçiş yapacağız. Ayrıca, sıralama (sorting) ve arama (searching) algoritmalarını derinlemesine inceleyerek, kodunuzun verimliliğini nasıl artırabileceğinizi öğreneceksiniz.\n\nBu kurs, yazılım mülakatlarına hazırlanan öğrenciler ve algoritmik düşünme yeteneğini geliştirmek isteyen herkes için uygundur.',
-                    style: TextStyle(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 16,
                       height: 1.6,
-                      color: Colors.black87,
+                      // Metin rengini temadan al
+                      color: colorScheme.onSurface, 
                     ),
                   ),
                 ],

@@ -31,20 +31,36 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Logo (varsayalım ki logo koyu modda da görünür)
             Image.asset(
               'assets/images/logo.png',
               width: 200,
+              // Gerekirse koyu modda renk filtrelemesi yapılabilir, ancak şimdilik varsayıyoruz.
             ),
             const SizedBox(height: 24),
+            // Yükleme göstergesi ekleyelim
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                // Rengi temadan al
+                color: colorScheme.primary, 
+                strokeWidth: 2,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
-

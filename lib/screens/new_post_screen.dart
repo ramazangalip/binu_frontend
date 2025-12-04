@@ -50,7 +50,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
   void _sharePost() {
     if (_textController.text.trim().isEmpty && _pickedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen bir metin yazın veya dosya ekleyin!')),
+        SnackBar(content: Text('Lütfen bir metin yazın veya dosya ekleyin!')),
       );
       return;
     }
@@ -82,60 +82,56 @@ class _NewPostScreenState extends State<NewPostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Yeni Gönderi Oluştur'),
-        backgroundColor: Colors.white,
+        // AppBar stili (renk ve elevation) AppTheme'dan otomatik gelir
         elevation: 1,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
           // Gönderi İçeriği
-          _buildSectionTitle('Gönderi İçeriği'),
+          _buildSectionTitle('Gönderi İçeriği', theme),
           const SizedBox(height: 8),
           TextField(
             controller: _textController,
+            // InputDecoration stili AppTheme'dan geliyor.
             decoration: InputDecoration(
               hintText: 'Düşüncelerini, duyurularını veya sorularını buraya yaz...',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
+              // fillColor: Colors.white, kaldırıldı. AppTheme'dan geliyor.
+              // border stili AppTheme'dan geliyor.
+              // enabledBorder stili AppTheme'dan geliyor.
             ),
             maxLines: 5,
           ),
           const SizedBox(height: 24),
 
           // Kategori
-          _buildSectionTitle('Kategori'),
+          _buildSectionTitle('Kategori', theme),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedCategory,
-            hint: const Text('Bir kategori seçin'),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey.shade300),
-              ),
+            hint: Text('Bir kategori seçin', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            // InputDecoration stili AppTheme'dan geliyor.
+            decoration: const InputDecoration(
+              // fillColor: Colors.white, kaldırıldı. AppTheme'dan geliyor.
+              // border stili AppTheme'dan geliyor.
+              // enabledBorder stili AppTheme'dan geliyor.
             ),
             items: _categories.map((String category) {
               return DropdownMenuItem<String>(
                 value: category,
-                child: Text(category),
+                child: Text(
+                  category,
+                  // Metin rengini temadan al
+                  style: TextStyle(color: colorScheme.onSurface), 
+                ),
               );
             }).toList(),
             onChanged: (newValue) {
@@ -147,19 +143,26 @@ class _NewPostScreenState extends State<NewPostScreen> {
           const SizedBox(height: 24),
 
           // Görsel veya Dosya Ekle Butonu
-          // Eğer dosya seçildiyse seçilen dosyayı göster, seçilmediyse butonu göster
           if (_pickedFile != null) 
-            _buildSelectedFileCard()
+            _buildSelectedFileCard(colorScheme)
           else
             OutlinedButton.icon(
-              icon: Icon(Icons.attach_file, color: Colors.grey.shade700),
+              icon: Icon(
+                Icons.attach_file, 
+                // İkon rengini temadan al
+                color: colorScheme.onSurfaceVariant,
+              ),
               label: Text(
                 'Görsel veya Dosya Ekle (PDF, JPG, PNG)',
-                style: TextStyle(color: Colors.grey.shade800),
+                style: TextStyle(
+                  // Metin rengini temadan al
+                  color: colorScheme.onSurface, 
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                side: BorderSide(color: Colors.grey.shade400),
+                // Çerçeve rengini temadan al
+                side: BorderSide(color: colorScheme.outline, width: 1), 
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -173,31 +176,32 @@ class _NewPostScreenState extends State<NewPostScreen> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blueAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+          // Stil bloğu kaldırıldı. Bu sayede stil AppTheme'daki elevatedButtonTheme'dan gelecek.
+          onPressed: _sharePost,
+          child: Text(
+            'Paylaş', 
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontSize: 16,
+              // Metin rengi ElevatedButtonTheme'dan otomatik gelir.
             ),
           ),
-          onPressed: _sharePost,
-          child: const Text('Paylaş', style: TextStyle(fontSize: 16)),
         ),
       ),
     );
   }
 
   // Seçilen dosyanın önizlemesini gösteren widget
-  Widget _buildSelectedFileCard() {
+  Widget _buildSelectedFileCard(ColorScheme colorScheme) {
     bool isImage = ['jpg', 'jpeg', 'png'].contains(_pickedFile!.extension?.toLowerCase());
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Kart arka planını temadan al
+        color: colorScheme.surface, 
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        // Çerçeve rengini temadan al
+        border: Border.all(color: colorScheme.outlineVariant), 
       ),
       child: Row(
         children: [
@@ -206,7 +210,8 @@ class _NewPostScreenState extends State<NewPostScreen> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              // İkon/Placeholder arka planını temadan al
+              color: colorScheme.primaryContainer.withOpacity(0.5), 
               borderRadius: BorderRadius.circular(8),
               image: isImage && _filePath != null
                   ? DecorationImage(
@@ -217,7 +222,11 @@ class _NewPostScreenState extends State<NewPostScreen> {
             ),
             child: isImage && _filePath != null 
                 ? null 
-                : const Icon(Icons.insert_drive_file, color: Colors.blue),
+                : Icon(
+                    Icons.insert_drive_file, 
+                    // İkon rengini temadan al
+                    color: colorScheme.primary,
+                  ),
           ),
           const SizedBox(width: 12),
           
@@ -230,11 +239,13 @@ class _NewPostScreenState extends State<NewPostScreen> {
                   _pickedFile!.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  // Metin rengini temadan al
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface), 
                 ),
                 Text(
+                  // Dosya boyutu metin rengini temadan al
                   '${(_pickedFile!.size / 1024).toStringAsFixed(1)} KB',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
                 ),
               ],
             ),
@@ -242,7 +253,8 @@ class _NewPostScreenState extends State<NewPostScreen> {
           
           // Kaldır Butonu
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.red),
+            // Kapat ikon rengini temadan al (Hata/Danger rengi, Colors.red)
+            icon: Icon(Icons.close, color: colorScheme.error), 
             onPressed: _removeFile,
           ),
         ],
@@ -250,13 +262,14 @@ class _NewPostScreenState extends State<NewPostScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, ThemeData theme) {
     return Text(
       title,
-      style: const TextStyle(
+      style: theme.textTheme.headlineSmall?.copyWith(
         fontWeight: FontWeight.bold,
         fontSize: 16,
-        color: Colors.black87,
+        // Metin rengini temadan al
+        color: theme.colorScheme.onSurface, 
       ),
     );
   }

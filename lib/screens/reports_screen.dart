@@ -19,31 +19,82 @@ class _ReportsScreenState extends State<ReportsScreen> {
   final List<String> _teamMembers = ['Ayşe Yılmaz', 'Can Demir'];
 
   Future<void> _selectDate() async {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    
     DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
+      // Tema renklerini DatePicker'a uygula
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(
+              primary: colorScheme.primary, // Vurgu rengi
+              onPrimary: colorScheme.onPrimary, // Başlık metin rengi
+              surface: colorScheme.surface, // Arka plan
+              onSurface: colorScheme.onSurface, // Takvim metin rengi
+            ),
+            // Metin stillerini korumak için
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: colorScheme.primary, // Buton metin rengi (OK/CANCEL)
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
       setState(() {
+        // İntL paketini kullanmadığımız için basit formatlama
         _dateController.text = "${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}";
       });
     }
   }
 
   void _addTeamMember() {
-
+    // Burada gerçekte bir dialog açılıp üye seçilmeli veya girilmelidir.
     setState(() {
       _teamMembers.add('Yeni Üye');
     });
   }
 
+  void _removeTeamMember(String memberName) {
+    setState(() {
+      _teamMembers.remove(memberName);
+    });
+  }
+
+  void _saveReport() {
+    if (_formKey.currentState!.validate()) {
+      // Başarı mesajı (temadan renkleri al)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('Rapor başarıyla kaydedildi!', style: TextStyle(color: Colors.white)),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
+      // AppBar ekleyelim
+      appBar: AppBar(
+        title: const Text('Yeni Proje Raporu'),
+        elevation: 0.5,
+        // Renkler AppTheme'dan geliyor.
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Form(
@@ -51,89 +102,83 @@ class _ReportsScreenState extends State<ReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionTitle('Proje Adı'),
+              // Proje Adı
+              _buildSectionTitle('Proje Adı', theme),
               TextFormField(
                 controller: _projectTitleController,
+                // Decoration stili AppTheme'dan geliyor.
                 decoration: const InputDecoration(
                   hintText: 'Örn: Mobil Uygulama Geliştirme',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
+                validator: (value) => value == null || value.isEmpty ? 'Proje adı gerekli.' : null,
               ),
               const SizedBox(height: 24),
               
-              _buildSectionTitle('Açıklama'),
+              // Açıklama
+              _buildSectionTitle('Açıklama', theme),
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 4,
                 decoration: const InputDecoration(
                   hintText: 'Projenin hedeflerini, kapsamını ve metodolojisini açıklayın.',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
                   alignLabelWithHint: true,
                 ),
+                validator: (value) => value == null || value.isEmpty ? 'Açıklama gerekli.' : null,
               ),
               const SizedBox(height: 24),
 
-              _buildSectionTitle('Teslim Tarihi'),
+              // Teslim Tarihi
+              _buildSectionTitle('Teslim Tarihi', theme),
               TextFormField(
                 controller: _dateController,
                 readOnly: true,
                 onTap: _selectDate,
-                decoration: const InputDecoration(
+                // Decoration stili AppTheme'dan geliyor.
+                decoration: InputDecoration(
                   hintText: 'GG.AA.YYYY',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
-                  filled: true,
-                  fillColor: Colors.white,
+                  prefixIcon: Icon(Icons.calendar_today_outlined, color: colorScheme.onSurface.withOpacity(0.6)),
                 ),
+                validator: (value) => value == null || value.isEmpty ? 'Tarih gerekli.' : null,
               ),
               const SizedBox(height: 24),
 
-              _buildSectionTitle('Takım Üyeleri'),
+              // Takım Üyeleri
+              _buildSectionTitle('Takım Üyeleri', theme),
               Wrap(
                 spacing: 8.0,
                 runSpacing: 4.0,
                 children: [
-                  ..._teamMembers.map((member) => Chip(label: Text(member))),
+                  ..._teamMembers.map((member) => _buildMemberChip(member, colorScheme, theme)),
                   ActionChip(
-                    avatar: const Icon(Icons.add),
+                    avatar: Icon(Icons.add, color: colorScheme.onPrimary), // Buton rengi
                     label: const Text('Üye Ekle'),
+                    // Arka plan rengi temadan al (primary)
+                    backgroundColor: colorScheme.primary,
+                    // Metin rengi temadan al (onPrimary)
+                    labelStyle: TextStyle(color: colorScheme.onPrimary),
                     onPressed: _addTeamMember,
                   ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              _buildSectionTitle('İlerleme Durumu'),
+              // İlerleme Durumu
+              _buildSectionTitle('İlerleme Durumu', theme),
               TextFormField(
                 controller: _statusController,
+                // Decoration stili AppTheme'dan geliyor.
                 decoration: const InputDecoration(
                   hintText: 'Örn: %75 tamamlandı, test aşamasında',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
                 ),
               ),
 
-              // DEĞİŞİKLİK: Buton buraya eklendi
+              // Kaydet Butonu
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Raporu kaydetme mantığı
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple.shade900,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  onPressed: _saveReport,
+                  // Stil bloğu kaldırıldı. AppTheme'dan gelecek.
                   child: const Text('Raporu Kaydet', style: TextStyle(fontSize: 16)),
                 ),
               ),
@@ -141,19 +186,35 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ),
       ),
-      // DEĞİŞİKLİK: bottomNavigationBar kaldırıldı
     );
   }
 
   // Başlıklar için yardımcı bir widget
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontSize: 16, 
+          fontWeight: FontWeight.bold,
+          // Metin rengini temadan al
+          color: theme.colorScheme.onSurface,
+        ),
       ),
     );
   }
-}
 
+  // Takım üyesi Chip'i
+  Widget _buildMemberChip(String memberName, ColorScheme colorScheme, ThemeData theme) {
+    return Chip(
+      label: Text(memberName),
+      labelStyle: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+      // Chip'in arka plan rengi
+      backgroundColor: colorScheme.surfaceVariant,
+      onDeleted: () => _removeTeamMember(memberName),
+      // Silme ikonu rengini temadan al
+      deleteIconColor: colorScheme.onSurfaceVariant,
+    );
+  }
+}

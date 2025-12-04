@@ -11,14 +11,17 @@ class ForgotPasswordScreen extends StatefulWidget {
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController _emailController = TextEditingController();
-
   final _formKey = GlobalKey<FormState>();
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white, // açık tema arka plan
-      appBar: const CustomAppBar(),
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
+      appBar: const CustomAppBar(), // CustomAppBar'ın kendi içinde temaya uyumlu olması gerekir.
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
         child: Form(
@@ -26,38 +29,48 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 "Şifrenizi Sıfırlayın",
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 20,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  // Metin rengini temadan al
+                  color: colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
+                  fontSize: 20,
                 ),
               ),
               const SizedBox(height: 15),
 
-              const Text(
+              Text(
                 "Üniversite e-posta adresinizi girin, şifre sıfırlama bağlantısını size gönderelim.",
-                style: TextStyle(color: Colors.black54, fontSize: 14),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // Metin rengini temadan al
+                  color: colorScheme.onSurfaceVariant, 
+                  fontSize: 14,
+                ),
               ),
               const SizedBox(height: 25),
 
+              // TextFormField, AppTheme'daki inputDecorationTheme'ı kullanacak
               TextFormField(
                 controller: _emailController,
                 decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  prefixIcon:
-                      const Icon(Icons.email_outlined, color: Colors.grey),
-                  hintText: "ogrenci mailinizi giriniz.",
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  // fillColor AppTheme'dan geliyor (Colors.grey[100] veya Colors.grey[800])
+                  prefixIcon: Icon(
+                    Icons.email_outlined,
+                    // İkon rengini temadan al
+                    color: colorScheme.onSurface.withOpacity(0.6),
                   ),
+                  hintText: "ogrenci mailinizi giriniz.",
+                  hintStyle: TextStyle(
+                    // Hint metin rengini temadan al
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  // border ve focusedBorder stilleri AppTheme'dan gelir,
+                  // ancak FocusedBorder'da elle atanmış renkleri dinamikleştirelim.
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.blue, width: 1.5),
+                    // Odaklandığında ana rengi kullan
+                    borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
                   ),
                 ),
 
@@ -85,30 +98,38 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
               const SizedBox(height: 25),
 
+              // ℹ️ Bilgilendirme Kutusu
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
-                  color: Colors.blue[50],
+                  // Arka plan rengini temadan al (primaryContainer: açık modda açık mavi/mor, koyu modda koyu mavi/mor)
+                  color: colorScheme.primaryContainer.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200, width: 1),
+                  // Çerçeve rengini temadan al
+                  border: Border.all(color: colorScheme.primary, width: 1),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       "Bilgilendirme",
-                      style: TextStyle(
-                        color: Colors.blue,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        // Başlık rengini temadan al
+                        color: colorScheme.primary, 
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
                     ),
-                    SizedBox(height: 5),
+                    const SizedBox(height: 5),
                     Text(
                       "Şifre sıfırlama bağlantısı e-posta adresinize gönderilecektir. "
                       "Lütfen gelen kutunuzu (ve spam klasörünüzü) kontrol etmeyi unutmayın.",
-                      style: TextStyle(color: Colors.black87, fontSize: 13),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        // İçerik metin rengini temadan al
+                        color: colorScheme.onSurface, 
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -116,28 +137,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
               const SizedBox(height: 30),
 
-           
+              // Gönder Butonu
               SizedBox(
                 width: double.infinity,
                 height: 45,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade800,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
+                  // Stil bloğu kaldırıldı. Bu sayede stil AppTheme'dan gelecek.
                   onPressed: () {
-               
                     if (_formKey.currentState!.validate()) {
-                    
+                      // Snackbar renkleri dinamikleştirildi
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
+                        SnackBar(
                           behavior: SnackBarBehavior.floating,
-                          backgroundColor: Color(0xFF4CAF50),
+                          // Başarı rengi için Green (Vurgu rengi değil, genel başarı rengi)
+                          backgroundColor: Colors.green, 
                           content: Text(
-                              'Sıfırlama bağlantısı e-posta adresinize gönderildi'),
+                            'Sıfırlama bağlantısı e-posta adresinize gönderildi',
+                            // Metin rengi, yeşil üzerinde kontrast renk
+                            style: TextStyle(color: Colors.white), 
+                          ),
                         ),
                       );
                       Navigator.pushReplacement(
@@ -147,12 +165,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       );
                     }
                   },
-                  child: const Text(
+                  child: Text(
                     "Sıfırlama Bağlantısı Gönder",
-                    style: TextStyle(
+                    style: theme.textTheme.labelLarge?.copyWith(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      // Metin rengi temadan (onPrimary) otomatik gelecek, bu satır kaldırılsın.
+                      // color: Colors.white, 
                     ),
                   ),
                 ),

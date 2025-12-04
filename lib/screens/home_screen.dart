@@ -77,36 +77,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      // 1. Arka Plan Rengi: Temanın ana arka plan rengi kullanılacak.
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 🔍 Arama Kutusu
           TextField(
+            // theme.inputDecorationTheme'ı kullanacak
             decoration: InputDecoration(
               hintText: "Kurs ara...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: Colors.white,
+              prefixIcon: Icon(
+                Icons.search,
+                // İkon rengi temadan çekilecek.
+                color: colorScheme.onSurface.withOpacity(0.6), 
+              ),
+              // fillColor, AppTheme'daki inputDecorationTheme'dan geliyor.
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
+              // border stili AppTheme'dan geliyor.
             ),
           ),
           const SizedBox(height: 16),
 
           // 🧑‍🤝‍🧑 Takip Ettiklerin
-          _buildSectionTitle("Takip Ettiklerin"),
+          _buildSectionTitle("Takip Ettiklerin", theme, colorScheme),
           const SizedBox(height: 8),
-          ...posts.map((post) => _buildPostCard(post)).toList(),
+          ...posts.map((post) => _buildPostCard(post, theme, colorScheme)).toList(),
           const SizedBox(height: 20),
 
           // 💻 Popüler Kurslar
-          _buildSectionTitle("Popüler Kurslar"),
+          _buildSectionTitle("Popüler Kurslar", theme, colorScheme, isSearchable: true),
           const SizedBox(height: 12),
           SizedBox(
             height: 130,
@@ -114,22 +119,22 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               itemCount: popularCourses.length,
               itemBuilder: (context, index) {
-                return _buildSingleCourseCard(context, popularCourses[index]);
+                return _buildSingleCourseCard(context, popularCourses[index], theme, colorScheme);
               },
             ),
           ),
           const SizedBox(height: 20),
 
+          _buildScoreCard(theme, colorScheme),
           const SizedBox(height: 8),
-          _buildScoreCard(),
-          const SizedBox(height: 8),
-          _buildProjectStatusCard(),
+          _buildProjectStatusCard(theme, colorScheme),
         ],
       ),
       // ... HomeScreen içinde ...
 
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.blueAccent,
+        // FAB rengi: Colors.blueAccent yerine primary veya secondary kullanılabilir.
+        backgroundColor: colorScheme.secondary,
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -141,43 +146,42 @@ class _HomeScreenState extends State<HomeScreen> {
             });
           }
         },
-        child: const Icon(Icons.add, color: Colors.white),
+        // İkon rengi: `onSecondary` rengi, `secondary` üzerindeki rengi belirler.
+        child: Icon(Icons.add, color: colorScheme.onSecondary),
       ),
     );
   }
 
   // 🔹 Başlık + Tümünü Gör satırı
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, ThemeData theme, ColorScheme colorScheme, {bool isSearchable = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 17,
-          ),
+          // 2. Başlık metin rengi temadan çekilecek.
+          style: theme.textTheme.headlineMedium?.copyWith(fontSize: 17),
         ),
         TextButton(
           onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const SearchScreen(),
+                builder: (context) => isSearchable ? const SearchScreen() : const LeaderboardScreen(),
               ),
             );
           },
-          child: const Text(
+          child: Text(
             "Tümünü Gör",
-            style: TextStyle(color: Colors.blueAccent),
+            // 3. TextButton metin rengi temadan çekilecek (primary).
+            style: TextStyle(color: colorScheme.primary),
           ),
         )
       ],
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
-    // DEĞİŞİKLİK: Card widget'ı GestureDetector ile sarmalandı
+  Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -188,11 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Card(
-        color: Colors.white,
+        // 4. Card rengi: Sabit Colors.white yerine tema kart rengi kullanılacak.
+        // CardTheme'da zaten tanımladınız, bu yüzden sadece Card() yeterli.
         margin: const EdgeInsets.only(bottom: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 2,
-        shadowColor: Colors.grey.withOpacity(0.1),
+        // shape, elevation, shadowColor CardTheme'dan geliyor.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -203,7 +206,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   CircleAvatar(
                     radius: 20,
                     backgroundImage: NetworkImage(post['profilePic']!),
-                    backgroundColor: Colors.grey.shade200,
+                    // CircleAvatar arka plan rengi temadan çekilecek.
+                    backgroundColor: colorScheme.surfaceVariant, 
                   ),
                   const SizedBox(width: 10),
                   Column(
@@ -211,24 +215,28 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         post['username'],
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Colors.black87),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          // 5. Metin rengi temadan çekilecek (onSurface).
+                          color: colorScheme.onSurface, 
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          // 6. Badge arka plan rengi temadan çekilecek (primary'nin hafif versiyonu).
+                          color: colorScheme.primaryContainer, 
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           post['title']!,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.blue.shade700,
+                            // 7. Badge metin rengi temadan çekilecek (onPrimaryContainer).
+                            color: colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -248,7 +256,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (loadingProgress == null) return child;
                   return Container(
                     height: 220,
-                    color: Colors.grey.shade200,
+                    // 8. Placeholder arka plan rengi temadan çekilecek.
+                    color: colorScheme.surfaceVariant, 
                     child: Center(
                       child: CircularProgressIndicator(
                         value: loadingProgress.expectedTotalBytes != null
@@ -256,16 +265,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                 loadingProgress.expectedTotalBytes!
                             : null,
                         strokeWidth: 2,
-                        color: Colors.blueAccent,
+                        // 9. Progress Indicator rengi temadan çekilecek.
+                        color: colorScheme.primary, 
                       ),
                     ),
                   );
                 },
                 errorBuilder: (context, error, stackTrace) => Container(
                   height: 220,
-                  color: Colors.grey.shade200,
-                  child: const Center(
-                    child: Icon(Icons.broken_image, color: Colors.grey),
+                  // 10. Hata arka plan rengi temadan çekilecek.
+                  color: colorScheme.surfaceVariant, 
+                  child: Center(
+                    // 11. Hata ikon rengi temadan çekilecek.
+                    child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)), 
                   ),
                 ),
               ),
@@ -274,9 +286,10 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(12.0),
               child: Text(
                 post['text'],
-                style: const TextStyle(
+                style: theme.textTheme.bodyLarge?.copyWith(
                   fontSize: 16,
-                  color: Colors.black87,
+                  // 12. İçerik metin rengi temadan çekilecek.
+                  color: colorScheme.onSurface, 
                   height: 1.5,
                 ),
               ),
@@ -289,28 +302,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.thumb_up_alt_outlined,
-                          size: 20, color: Colors.grey.shade600),
+                      _buildActionIcon(Icons.thumb_up_alt_outlined, colorScheme),
                       const SizedBox(width: 4),
                       Text('${post['likes']}',
-                          style: TextStyle(color: Colors.grey.shade700)),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant)),
                       const SizedBox(width: 16),
-                      Icon(Icons.chat_bubble_outline,
-                          size: 20, color: Colors.grey.shade600),
+                      _buildActionIcon(Icons.chat_bubble_outline, colorScheme),
                       const SizedBox(width: 4),
                       Text('${post['comments']}',
-                          style: TextStyle(color: Colors.grey.shade700)),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant)),
                       const SizedBox(width: 16),
-                      Icon(Icons.share_outlined,
-                          size: 20, color: Colors.grey.shade600),
+                      _buildActionIcon(Icons.share_outlined, colorScheme),
                       const SizedBox(width: 4),
                       Text('${post['shares']}',
-                          style: TextStyle(color: Colors.grey.shade700)),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant)),
                     ],
                   ),
                   Text(
                     post['time'],
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    // 13. Zaman metin rengi temadan çekilecek.
+                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), 
                   ),
                 ],
               ),
@@ -321,8 +332,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Dinamik ikon oluşturucu
+  Widget _buildActionIcon(IconData icon, ColorScheme colorScheme) {
+    // 14. İkon rengi temadan çekilecek.
+    return Icon(icon, size: 20, color: colorScheme.onSurface.withOpacity(0.6));
+  }
+
   Widget _buildSingleCourseCard(
-      BuildContext context, Map<String, String> courseData) {
+      BuildContext context, Map<String, String> courseData, ThemeData theme, ColorScheme colorScheme) {
     return GestureDetector(
       onTap: () {
         // Tıklanınca CourseDetailScreen'e git
@@ -336,11 +353,13 @@ class _HomeScreenState extends State<HomeScreen> {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          // 15. Container rengi: Sabit Colors.white yerine tema yüzey rengi kullanılacak.
+          color: colorScheme.surface, 
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              // 16. Shadow rengi temadan çekilecek.
+              color: colorScheme.shadow.withOpacity(theme.brightness == Brightness.light ? 0.1 : 0.4), 
               spreadRadius: 1,
               blurRadius: 5,
             ),
@@ -353,7 +372,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               courseData['code']!,
               style: TextStyle(
-                color: Colors.blue.shade700,
+                // 17. Kurs kodu rengi temadan çekilecek.
+                color: colorScheme.primary, 
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
@@ -363,18 +383,20 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   courseData['title']!,
-                  style: const TextStyle(
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: Colors.black87,
+                    // 18. Kurs başlık rengi temadan çekilecek.
+                    color: colorScheme.onSurface, 
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   courseData['instructor']!,
-                  style: const TextStyle(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 13,
-                    color: Colors.black54,
+                    // 19. Eğitmen adı rengi temadan çekilecek.
+                    color: colorScheme.onSurfaceVariant, 
                   ),
                 ),
               ],
@@ -385,12 +407,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildScoreCard() {
+  Widget _buildScoreCard(ThemeData theme, ColorScheme colorScheme) {
     return Card(
-      color: Colors.white,
+      // Card Theme'da renkler tanımlı olduğu için Card() yeterli.
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      shadowColor: Colors.grey.withOpacity(0.1),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -400,34 +420,38 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(
                   Icons.emoji_events_outlined,
-                  color: Colors.blue.shade700,
+                  // 20. İkon rengi temadan çekilecek.
+                  color: colorScheme.primary, 
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Puan Durumu',
-                  style: TextStyle(
+                  style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    color: Colors.black87,
+                    // 21. Başlık rengi temadan çekilecek.
+                    color: colorScheme.onSurface, 
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Sıralamanız',
-              style: TextStyle(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                color: Colors.black54,
+                // 22. Metin rengi temadan çekilecek.
+                color: colorScheme.onSurfaceVariant, 
               ),
             ),
             const SizedBox(height: 4),
             Text(
               '12. Sıra (540 puan)',
-              style: TextStyle(
+              style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
+                // 23. Önemli metin rengi temadan çekilecek.
+                color: colorScheme.primary, 
               ),
             ),
             const SizedBox(height: 8),
@@ -440,8 +464,9 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               child: Text(
                 'Detayları Gör',
-                style: TextStyle(
-                  color: Colors.blue.shade600,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // 24. TextButton rengi temadan çekilecek.
+                  color: colorScheme.primary, 
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -452,12 +477,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildProjectStatusCard() {
+  Widget _buildProjectStatusCard(ThemeData theme, ColorScheme colorScheme) {
     return Card(
-      color: Colors.white,
+      // Card Theme'da renkler tanımlı olduğu için Card() yeterli.
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      shadowColor: Colors.grey.withOpacity(0.1),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -467,34 +490,38 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(
                   Icons.assignment_turned_in_outlined,
-                  color: Colors.green.shade700,
+                  // 25. İkon rengi: Sabit yeşil yerine temadan çekilecek (ya da success/tertiary renk).
+                  color: colorScheme.tertiary, // Örn. primary, secondary veya tertiary
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Proje Durumu',
-                  style: TextStyle(
+                  style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    color: Colors.black87,
+                    // 26. Başlık rengi temadan çekilecek.
+                    color: colorScheme.onSurface, 
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Teslim Edilen Projeler',
-              style: TextStyle(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                color: Colors.black54,
+                // 27. Metin rengi temadan çekilecek.
+                color: colorScheme.onSurfaceVariant, 
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               '2 / 3',
-              style: TextStyle(
+              style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                // 28. Önemli metin rengi temadan çekilecek.
+                color: colorScheme.onSurface, 
               ),
             ),
             const SizedBox(height: 8),
@@ -507,8 +534,9 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               child: Text(
                 'Detayları Gör',
-                style: TextStyle(
-                  color: Colors.blue.shade600,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // 29. TextButton rengi temadan çekilecek.
+                  color: colorScheme.primary, 
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -519,4 +547,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-

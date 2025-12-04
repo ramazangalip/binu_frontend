@@ -7,14 +7,22 @@ class UserAgreementDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tema verilerini alalım
+    final ThemeData theme = Theme.of(context);
+
     return AlertDialog(
-      title: const Text("Kullanıcı Sözleşmesi"),
+      // AlertDialog'un arka planı ve ana metin rengi tema tarafından yönetilir.
+      title: Text(
+        "Kullanıcı Sözleşmesi",
+        // Başlık metnini temadan alalım.
+        style: theme.textTheme.headlineMedium,
+      ),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 "2. KULLANICI SÖZLEŞMESİ (BİNU – FINAL)\n\n"
                 "2.1. Tanımlar\n"
@@ -34,22 +42,24 @@ class UserAgreementDialog extends StatelessWidget {
                 "- Güvenlik ihlali yapmak\n\n"
                 "2.8. Yürürlük\n"
                 "Uygulama indirildiği anda sözleşme yürürlüğe girer.",
-                style: TextStyle(fontSize: 14),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  // Yalnızca boyutunu sabit tuttuk, rengini temaya bıraktık.
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
         ),
       ),
       actions: [
+        // Kapat Butonu: TextButton olduğu için stili tema tarafından otomatik yönetilir.
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text("Kapat"),
         ),
+        // Kabul Butonu: Sabit stil kaldırıldı, AppTheme'daki Elevated Button teması kullanılacak.
         ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple.shade900,
-            foregroundColor: Colors.white,
-          ),
+          // style: ElevatedButton.styleFrom(...) bloğu kaldırıldı.
           onPressed: () {
             onAccepted();
             Navigator.of(context).pop();

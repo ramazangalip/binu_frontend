@@ -6,6 +6,9 @@ class LeaderboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     final List<Map<String, dynamic>> users = [
       {'name': 'Ayşe Yılmaz', 'score': 1250, 'avatar': 'https://i.pravatar.cc/150?img=2'},
       {'name': 'Mehmet Demir', 'score': 1200, 'avatar': 'https://i.pravatar.cc/150?img=3'},
@@ -20,25 +23,24 @@ class LeaderboardScreen extends StatelessWidget {
     final currentUser = users[0]; 
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-    
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
+      
       body: ListView(
         children: [
-          _buildYourRankCard(context, currentUser),
-          _buildTopScorersSection(context, users),
+          _buildYourRankCard(context, currentUser, theme, colorScheme),
+          _buildTopScorersSection(context, users, theme, colorScheme),
         ],
       ),
     );
   }
 
   // "Sıralamanız" kartını oluşturan widget
-  Widget _buildYourRankCard(BuildContext context, Map<String, dynamic> user) {
+  Widget _buildYourRankCard(BuildContext context, Map<String, dynamic> user, ThemeData theme, ColorScheme colorScheme) {
     return Card(
       margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: Colors.white,
-      elevation: 2,
-      shadowColor: Colors.grey.withOpacity(0.1),
+      // Kart rengi CardTheme'dan otomatik gelir.
+      // Gölge rengi CardTheme'dan otomatik gelir.
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -47,52 +49,61 @@ class LeaderboardScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Sıralamanız',
-                  style: TextStyle(
-                    fontSize: 16,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    // Metin rengini temadan al
+                    color: colorScheme.onSurfaceVariant, 
                     fontWeight: FontWeight.bold,
-                    color: Colors.black54,
+                    fontSize: 16,
                   ),
                 ),
-                Icon(Icons.emoji_events_outlined, color: Colors.blue.shade700),
+                // İkon rengini temadan al
+                Icon(Icons.emoji_events_outlined, color: colorScheme.primary),
               ],
             ),
             const SizedBox(height: 16),
             InkWell(
               onTap: () {
-              
+                // Profil sayfasına yönlendirme (örnek)
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
               },
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 24,
                     backgroundImage: NetworkImage(user['avatar']),
+                    backgroundColor: colorScheme.surfaceVariant,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       user['name'],
-                      style: const TextStyle(
+                      style: theme.textTheme.headlineSmall?.copyWith(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        // Metin rengini temadan al
+                        color: colorScheme.onSurface, 
                       ),
                     ),
                   ),
-                  const Text(
+                  Text(
                     '#1',
-                    style: TextStyle(
+                    style: theme.textTheme.displaySmall?.copyWith(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                      // Sıra numarasının rengini temadan al
+                      color: colorScheme.primary,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Text(
                     '${user['score']} Puan',
-                    style: const TextStyle(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      // Puan metin rengini temadan al
+                      color: colorScheme.onSurface, 
                     ),
                   ),
                 ],
@@ -104,17 +115,19 @@ class LeaderboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTopScorersSection(BuildContext context, List<Map<String, dynamic>> users) {
+  Widget _buildTopScorersSection(BuildContext context, List<Map<String, dynamic>> users, ThemeData theme, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'En Yüksek Puan Alanlar',
-            style: TextStyle(
+            style: theme.textTheme.titleLarge?.copyWith(
               fontSize: 18,
               fontWeight: FontWeight.bold,
+              // Başlık metin rengini temadan al
+              color: colorScheme.onSurface, 
             ),
           ),
           const SizedBox(height: 12),
@@ -124,7 +137,7 @@ class LeaderboardScreen extends StatelessWidget {
             itemCount: users.length,
             itemBuilder: (context, index) {
               final user = users[index];
-              return _buildUserRankTile(context, user, index + 1);
+              return _buildUserRankTile(context, user, index + 1, theme, colorScheme);
             },
           ),
         ],
@@ -132,18 +145,29 @@ class LeaderboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUserRankTile(BuildContext context, Map<String, dynamic> user, int rank) {
+  Widget _buildUserRankTile(BuildContext context, Map<String, dynamic> user, int rank, ThemeData theme, ColorScheme colorScheme) {
     // İlk sıradaki kullanıcı için özel stil
     final bool isFirst = rank == 1;
+
+    // isFirst için renkleri dinamikleştir
+    final Color rankBgColor = isFirst 
+      ? colorScheme.primaryContainer 
+      : theme.cardColor; // Diğerleri için tema kart rengi
+      
+    final Color rankTextColor = isFirst 
+      ? colorScheme.onPrimaryContainer 
+      : colorScheme.onSurface; // Diğerleri için normal metin rengi
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: isFirst ? Colors.deepPurple.shade50 : Colors.white,
+      // Kart rengini dinamik olarak ayarla
+      color: rankBgColor, 
       elevation: 1,
       child: InkWell(
         onTap: () {
-       
+          // Profil sayfasına yönlendirme (örnek)
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -152,37 +176,47 @@ class LeaderboardScreen extends StatelessWidget {
             children: [
               Text(
                 '#$rank',
-                style: TextStyle(
+                style: theme.textTheme.bodyLarge?.copyWith(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isFirst ? Colors.deepPurple.shade900 : Colors.grey.shade600,
+                  // Sıra numarasının rengini dinamik olarak ayarla
+                  color: rankTextColor, 
                 ),
               ),
               const SizedBox(width: 12),
               CircleAvatar(
                 radius: 20,
                 backgroundImage: NetworkImage(user['avatar']),
+                backgroundColor: colorScheme.surfaceVariant,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   user['name'],
-                  style: const TextStyle(
+                  style: theme.textTheme.bodyLarge?.copyWith(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
+                    // Kullanıcı adı rengini temadan al
+                    color: colorScheme.onSurface, 
                   ),
                 ),
               ),
               Text(
                 '${user['score']} Puan',
-                style: TextStyle(
+                style: theme.textTheme.bodyLarge?.copyWith(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: isFirst ? Colors.deepPurple.shade900 : Colors.black87,
+                  // Puan metin rengini dinamik olarak ayarla
+                  color: rankTextColor,
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey.shade400),
+              Icon(
+                Icons.arrow_forward_ios, 
+                size: 14, 
+                // İkon rengini temadan al
+                color: colorScheme.onSurfaceVariant,
+              ),
             ],
           ),
         ),

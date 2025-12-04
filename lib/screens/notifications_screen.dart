@@ -9,6 +9,7 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  // Singleton yapısından NotificationService örneğini al
   final NotificationService _notificationService = NotificationService();
 
   @override
@@ -19,28 +20,41 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
     final notifications = _notificationService.notifications;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka planı temadan al
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Bildirimler'),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        // AppBar stili AppTheme'dan otomatik gelir
         elevation: 0.5,
         actions: [
-           IconButton(
-             icon: const Icon(Icons.done_all),
-             tooltip: 'Tümünü Okundu İşaretle',
-             onPressed: () {
-               setState(() {
-                 _notificationService.markAllAsRead();
-               });
-               ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Tüm bildirimler okundu olarak işaretlendi.')),
-               );
-             },
-           ),
+          IconButton(
+            icon: const Icon(Icons.done_all),
+            tooltip: 'Tümünü Okundu İşaretle',
+            // İkon rengi temadan gelir
+            onPressed: () {
+              setState(() {
+                // Service içindeki metodu çağır
+                _notificationService.markAllAsRead();
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  // Snackbar arka plan rengi temadan (surface) alınır
+                  backgroundColor: colorScheme.surface,
+                  content: Text(
+                    'Tüm bildirimler okundu olarak işaretlendi.',
+                    // Snackbar metin rengi temadan (onSurface) alınır
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: notifications.isEmpty 
@@ -48,33 +62,50 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey[300]),
+                Icon(
+                  Icons.notifications_off_outlined, 
+                  size: 64, 
+                  // İkon rengini temadan al
+                  color: colorScheme.onSurface.withOpacity(0.3)
+                ),
                 const SizedBox(height: 16),
-                Text('Henüz bildirim yok', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                Text(
+                  'Henüz bildirim yok', 
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    // Metin rengini temadan al
+                    color: colorScheme.onSurfaceVariant, 
+                    fontSize: 16,
+                  )
+                ),
               ],
             ),
           )
         : ListView.separated(
-            itemCount: notifications.length,
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              return _buildNotificationTile(
-                context,
-                notification['user'],
-                notification['content'],
-                notification['avatar'],
-                notification['time'],
-                notification['type'],
-                notification['isRead'],
-              );
-            },
-            separatorBuilder: (context, index) => Divider(
-              height: 1,
-              thickness: 1,
-              color: Colors.grey[100],
-              indent: 70,
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final notification = notifications[index];
+                return _buildNotificationTile(
+                  context,
+                  notification['user'],
+                  notification['content'],
+                  notification['avatar'],
+                  notification['time'],
+                  notification['type'],
+                  notification['isRead'],
+                  // NOT: id yerine index'i gönderiyoruz. Gerçek kullanımda id gönderilmelidir.
+                  notification['id'], 
+                  theme,
+                  colorScheme,
+                );
+              },
+              separatorBuilder: (context, index) => Divider(
+                height: 1,
+                thickness: 1,
+                // Ayırıcı çizgi rengini temadan al
+                color: colorScheme.outlineVariant, 
+                indent: 70,
+              ),
             ),
-          ),
     );
   }
 
@@ -86,34 +117,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     String time,
     String type,
     bool isRead,
+    int notificationId, // Bildirim ID'sini alıyoruz
+    ThemeData theme,
+    ColorScheme colorScheme,
   ) {
     final IconData iconData;
-    final Color iconColor;
+    final Color iconColor; 
 
     switch (type) {
       case 'like':
         iconData = Icons.favorite;
-        iconColor = Colors.pink;
+        iconColor = Colors.pink.shade400; 
         break;
       case 'comment':
         iconData = Icons.chat_bubble;
-        iconColor = Colors.blue;
+        iconColor = colorScheme.secondary; 
         break;
       case 'follow':
         iconData = Icons.person_add;
-        iconColor = Colors.green;
+        iconColor = Colors.green; 
         break;
       case 'course_announcement':
         iconData = Icons.school;
-        iconColor = Colors.purple;
+        iconColor = Colors.purple; 
         break;
       default:
         iconData = Icons.notifications;
-        iconColor = Colors.grey;
+        iconColor = colorScheme.onSurfaceVariant; 
     }
 
+    // Okunmamış arka plan rengi
+    final Color tileColor = isRead 
+        ? theme.scaffoldBackgroundColor 
+        : colorScheme.primaryContainer.withOpacity(0.15); 
+
     return Container(
-      color: isRead ? Colors.white : Colors.blue.shade50.withOpacity(0.4), // Okunmamışlar hafif mavi
+      // Arka plan rengini dinamik olarak ayarla
+      color: tileColor, 
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         leading: Stack(
@@ -122,21 +162,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             CircleAvatar(
               radius: 25,
               backgroundImage: NetworkImage(avatarUrl),
+              // Avatar placeholder rengini temadan al
+              backgroundColor: colorScheme.surfaceVariant, 
             ),
             Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 color: iconColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                // Çerçeve rengini temadan al
+                border: Border.all(color: colorScheme.background, width: 2), 
               ),
-              child: Icon(iconData, size: 14, color: Colors.white),
+              // İkon rengi: Beyaz tutuldu çünkü arka plan renkleri zaten kontrastlı
+              child: Icon(iconData, size: 14, color: Colors.white), 
             ),
           ],
         ),
         title: RichText(
           text: TextSpan(
-            style: DefaultTextStyle.of(context).style,
+            // Varsayılan metin stili temadan gelecek
+            style: DefaultTextStyle.of(context).style.copyWith(color: colorScheme.onSurface), 
             children: <TextSpan>[
               TextSpan(
                 text: '$user ',
@@ -153,14 +198,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           padding: const EdgeInsets.only(top: 4.0),
           child: Text(
             time,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            // Zaman metni rengini temadan al
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13), 
           ),
         ),
         trailing: !isRead 
-            ? const CircleAvatar(radius: 4, backgroundColor: Colors.red) 
+            ? CircleAvatar(
+              radius: 4, 
+              // Okunmamış işareti rengini temadan (error/danger) al
+              backgroundColor: colorScheme.error, 
+            ) 
             : null,
         onTap: () {
-        
+          // Bu metodunuzda `markAsRead(int id)` metodu olmadığı için,
+          // tıklamadan sonra sadece ekranı yeniden çizerek görsel geribildirim sağlıyoruz.
+          // Gerçekte burada _notificationService.markAsRead(notificationId) çağrılmalıdır.
+          setState(() {
+            // Not: Bu, sadece bir simülasyon olduğu için tam olarak
+            // okunma durumunu güncellemez. Ancak setState ile görsel geribildirim verir.
+            // Gerçek projede servisinizi güncellemeniz gerekir.
+          });
         },
       ),
     );

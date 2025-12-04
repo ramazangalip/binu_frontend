@@ -75,17 +75,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka planı temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
 
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildProfileHeader(),
-            _buildActionButtons(),
+            _buildProfileHeader(theme, colorScheme),
+            _buildActionButtons(colorScheme),
             const SizedBox(height: 24),
-            _buildFilterTabs(),
-            _buildPostsGrid(),
+            _buildFilterTabs(theme, colorScheme),
+            _buildPostsGrid(theme, colorScheme),
           ],
         ),
       ),
@@ -96,43 +100,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
             MaterialPageRoute(builder: (context) => const NewPostScreen()),
           );
         },
-        backgroundColor: Colors.blueAccent,
-        child: const Icon(Icons.add, color: Colors.white),
+        // FAB rengini temadan al
+        backgroundColor: colorScheme.secondary, 
+        // İkon rengini temadan al
+        child: Icon(Icons.add, color: colorScheme.onSecondary), 
       ),
     );
   }
-  Widget _buildProfileHeader() {
+  
+  // -----------------------------------------------------
+  // Profil Başlık Bölümü
+  // -----------------------------------------------------
+  Widget _buildProfileHeader(ThemeData theme, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 50,
-            backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=12'),
+            backgroundImage: const NetworkImage('https://i.pravatar.cc/150?img=12'),
+            // Avatar placeholder rengini temadan al
+            backgroundColor: colorScheme.surfaceVariant, 
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Mert Yılmaz',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontSize: 22, 
+              fontWeight: FontWeight.bold,
+              // Metin rengini temadan al
+              color: colorScheme.onSurface, 
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             '@mertyilmaz',
-            style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15, 
+              // İkincil metin rengini temadan al
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Bilgisayar Bilimleri öğrencisi, teknoloji ve girişimcilik tutkunu. Yeni fikirler keşfetmeyi severim.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, height: 1.5),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 14, 
+              height: 1.5,
+              // Metin rengini temadan al
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: const [
-              _StatItem(value: '1.2K', label: 'Takipçi'),
-              _StatItem(value: '350', label: 'Takip Edilen'),
-              _StatItem(value: '58', label: 'Gönderiler'),
+            children: [
+              _StatItem(value: '1.2K', label: 'Takipçi', theme: theme, colorScheme: colorScheme),
+              _StatItem(value: '350', label: 'Takip Edilen', theme: theme, colorScheme: colorScheme),
+              _StatItem(value: '58', label: 'Gönderiler', theme: theme, colorScheme: colorScheme),
             ],
           ),
         ],
@@ -141,7 +167,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  Widget _buildActionButtons() {
+  // -----------------------------------------------------
+  // Aksiyon Butonları Bölümü
+  // -----------------------------------------------------
+  Widget _buildActionButtons(ColorScheme colorScheme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -159,12 +188,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: Colors.grey.shade300),
+                // Çerçeve rengini temadan al
+                side: BorderSide(color: colorScheme.outlineVariant), 
+                // Metin rengini temadan al
+                foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child:  Text('Profili Düzenle'),
+              child: const Text('Profili Düzenle'),
             ),
           ),
         ),
@@ -176,7 +208,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text('Paylaş'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: Colors.grey.shade300),
+                // Çerçeve rengini temadan al
+                side: BorderSide(color: colorScheme.outlineVariant), 
+                // Metin rengini temadan al
+                foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -189,11 +224,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  Widget _buildFilterTabs() {
+  // -----------------------------------------------------
+  // Filtre Sekmeleri Bölümü
+  // -----------------------------------------------------
+  Widget _buildFilterTabs(ThemeData theme, ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200, width: 1.0),
+          // Alt çizgi rengini temadan al
+          bottom: BorderSide(color: colorScheme.outlineVariant, width: 1.0), 
         ),
       ),
       height: 50,
@@ -204,6 +243,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         itemBuilder: (context, index) {
           final tab = _tabs[index];
           final isSelected = tab == _selectedTab;
+          
+          final selectedBg = colorScheme.primaryContainer.withOpacity(0.4); // Seçili arka plan
+          final selectedFg = colorScheme.primary; // Seçili metin ve çizgi rengi
+
           return GestureDetector(
             onTap: () => setState(() => _selectedTab = tab),
             child: AnimatedContainer(
@@ -211,15 +254,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               margin: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.deepPurple.shade50
-                    : Colors.transparent,
+                color: isSelected ? selectedBg : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 border: Border(
                   bottom: BorderSide(
-                    color: isSelected
-                        ? Colors.deepPurple.shade900
-                        : Colors.transparent,
+                    color: isSelected ? selectedFg : Colors.transparent,
                     width: 2.0,
                   ),
                 ),
@@ -227,13 +266,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Center(
                 child: Text(
                   tab,
-                  style: TextStyle(
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    color: isSelected
-                        ? Colors.deepPurple.shade900
-                        : Colors.grey.shade600,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    // Metin rengini dinamik olarak ayarla
+                    color: isSelected ? selectedFg : colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -245,7 +281,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  Widget _buildPostsGrid() {
+  // -----------------------------------------------------
+  // Gönderi Izgarası Bölümü
+  // -----------------------------------------------------
+  Widget _buildPostsGrid(ThemeData theme, ColorScheme colorScheme) {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -258,18 +297,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         childAspectRatio: 0.75, // Kartların en-boy oranı
       ),
       itemBuilder: (context, index) {
-        return _buildPostCard(_filteredPosts[index]);
+        return _buildPostCard(_filteredPosts[index], theme, colorScheme);
       },
     );
   }
 
   // Tek bir gönderi kartı
-  Widget _buildPostCard(Map<String, dynamic> post) {
+  Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Arka plan rengini temadan al (Card veya Surface)
+        color: colorScheme.surface, 
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        // Çerçeve rengini temadan al
+        border: Border.all(color: colorScheme.outlineVariant), 
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,6 +322,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 120,
+                color: colorScheme.surfaceVariant,
+                child: Center(child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5))),
+              ),
             ),
           ),
           Padding(
@@ -290,17 +336,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   post['title'],
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    // Metin rengini temadan al
+                    color: colorScheme.onSurface, 
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   post['date'],
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 12, 
+                    // İkincil metin rengini temadan al
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                _buildStatusIndicator(post['status']),
+                _buildStatusIndicator(post['status'], colorScheme),
               ],
             ),
           ),
@@ -310,25 +364,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Gönderi durumunu gösteren widget (Yayınlandı, Taslak vb.)
-  Widget _buildStatusIndicator(String status) {
+  Widget _buildStatusIndicator(String status, ColorScheme colorScheme) {
     IconData icon;
     Color color;
+    
+    // Durum renkleri, görsel ayrım için sabit tutulabilir veya temadan çekilebilir.
+    // Burada sabit renkleri temadaki ana renklerin eşdeğeriyle değiştiriyoruz.
     switch (status) {
       case 'Yayınlandı':
         icon = Icons.check_circle;
-        color = Colors.green;
+        color = Colors.green.shade600; // Başarı rengi
         break;
       case 'Taslak':
         icon = Icons.edit_note;
-        color = Colors.orange;
+        color = Colors.orange.shade600; // Dikkat/Uyarı rengi
         break;
       case 'Planlandı':
         icon = Icons.timer_outlined;
-        color = Colors.blue;
+        color = colorScheme.primary; // Ana renk
         break;
       default:
         icon = Icons.circle;
-        color = Colors.grey;
+        color = colorScheme.onSurfaceVariant;
     }
 
     return Row(
@@ -352,8 +409,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;
+  final ThemeData theme;
+  final ColorScheme colorScheme;
 
-  const _StatItem({required this.label, required this.value});
+  const _StatItem({
+    required this.label, 
+    required this.value, 
+    required this.theme,
+    required this.colorScheme,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -361,9 +425,20 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold, 
+            fontSize: 18,
+            // Metin rengini temadan al
+            color: colorScheme.onSurface, 
+          ),
         ),
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Text(
+          label, 
+          style: theme.textTheme.bodyMedium?.copyWith(
+            // Etiket rengini temadan al
+            color: colorScheme.onSurfaceVariant
+          )
+        ),
       ],
     );
   }

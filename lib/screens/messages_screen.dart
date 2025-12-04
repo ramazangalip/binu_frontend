@@ -6,6 +6,9 @@ class MessagesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colorScheme = theme.colorScheme;
+
     final List<Map<String, dynamic>> conversations = [
       {
         'name': 'Ayşe Yılmaz',
@@ -38,14 +41,17 @@ class MessagesScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Arka plan rengini temadan al
+      backgroundColor: theme.scaffoldBackgroundColor, 
       appBar: AppBar(
         title: const Text('Mesajlar'),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        // AppBar stili (renk ve elevation) AppTheme'dan otomatik gelir
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.add_comment_outlined)),
+          IconButton(
+            onPressed: () {}, 
+            icon: const Icon(Icons.add_comment_outlined),
+          ),
         ],
       ),
       body: ListView.separated(
@@ -57,39 +63,51 @@ class MessagesScreen extends StatelessWidget {
             leading: CircleAvatar(
               radius: 28,
               backgroundImage: NetworkImage(conversation['avatar']),
+              // Avatar placeholder rengini temadan al
+              backgroundColor: colorScheme.surfaceVariant, 
             ),
             title: Text(
               conversation['name'],
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              // Metin rengi temadan (onSurface) gelir
+              style: theme.textTheme.titleMedium, 
             ),
             subtitle: Text(
               conversation['lastMessage'],
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              // Alt metin rengini temadan al
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.7), 
+              ),
             ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(conversation['time'], style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                Text(
+                  conversation['time'], 
+                  // Zaman metin rengini temadan al
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)
+                ),
                 if (conversation['unreadCount'] > 0) ...[
                   const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple.shade900,
+                      // Rozet arka plan rengini temadan al
+                      color: colorScheme.primary, // was Colors.deepPurple.shade900
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       conversation['unreadCount'].toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      // Rozet metin rengini temadan al
+                      style: TextStyle(color: colorScheme.onPrimary, fontSize: 12), // was Colors.white
                     ),
                   )
                 ]
               ],
             ),
             onTap: () {
-
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -105,7 +123,8 @@ class MessagesScreen extends StatelessWidget {
         separatorBuilder: (context, index) => Divider(
           height: 1,
           thickness: 1,
-          color: Colors.grey[100],
+          // Ayırıcı çizgi rengini temadan al
+          color: colorScheme.outlineVariant, // was Colors.grey[100]
           indent: 80,
         ),
       ),
