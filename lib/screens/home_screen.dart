@@ -1,7 +1,10 @@
+import 'dart:io'; 
+import 'dart:convert'; // JSON işlemleri için eklendi
+import 'package:http/http.dart' as http; // HTTP istekleri için eklendi
 import 'package:binu_frontend/screens/course_detail_screen.dart';
 import 'package:binu_frontend/screens/leaderboard_screen.dart';
 import 'package:binu_frontend/screens/new_post_screen.dart';
-import 'package:binu_frontend/screens/post_detail_screen.dart'; // YENİ EKLENDİ
+import 'package:binu_frontend/screens/post_detail_screen.dart';
 import 'package:binu_frontend/screens/reports_screen.dart';
 import 'package:binu_frontend/screens/search_screen.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +17,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  
+  // -----------------------------------------------------------------
+  // ⚙️ BACKEND ENTEGRASYONU İÇİN GEREKLİ ALANLAR
+  // -----------------------------------------------------------------
+  List<Map<String, String>> _fetchedPopularCourses = []; 
+  bool _isLoadingCourses = true; 
+  
+  // Django sunucunuzun temel adresi (Emulator için 10.0.2.2)
+  static const String _baseUrl = 'http://10.0.2.2:8000/api/'; 
+  // -----------------------------------------------------------------
+
   final List<Map<String, dynamic>> posts = [
     {
       'username': 'Ayşe Yıldız',
@@ -26,6 +40,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'likes': 124,
       'comments': 32,
       'shares': 5,
+      'filePath': null, 
+      'fileName': null, 
     },
     {
       'username': 'Mehmet Demir',
@@ -38,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'likes': 22,
       'comments': 1,
       'shares': 2,
+      'filePath': null, 
+      'fileName': null, 
     },
     {
       'username': 'Zeynep Kara',
@@ -49,31 +67,77 @@ class _HomeScreenState extends State<HomeScreen> {
       'likes': 15,
       'comments': 3,
       'shares': 1,
+      'filePath': null, 
+      'fileName': null, 
     },
   ];
+  
+  @override
+  void initState() {
+    super.initState();
+    _fetchPopularCourses();
+  }
 
-  final List<Map<String, String>> popularCourses = [
-    {
-      'code': 'COMP101',
-      'title': 'Programlamaya Giriş',
-      'instructor': 'Prof. Dr. Elif Kaya',
-    },
-    {
-      'code': 'MATH203',
-      'title': 'İleri Analiz',
-      'instructor': 'Doç. Dr. Can Uçar',
-    },
-    {
-      'code': 'PHYS101',
-      'title': 'Fizik I',
-      'instructor': 'Prof. Dr. Ahmet Kurt',
-    },
-    {
-      'code': 'EE201',
-      'title': 'Devre Teorisi',
-      'instructor': 'Dr. Zeynep Çelik',
-    },
-  ];
+  // -----------------------------------------------------------------
+  // API'den Popüler Kurs Verilerini Çeken Metot (GÜNCELLENDİ)
+  // -----------------------------------------------------------------
+  Future<void> _fetchPopularCourses() async {
+    setState(() {
+      _isLoadingCourses = true;
+    });
+
+    try {
+      // CourseViewSet için standart URL: /courses/
+      final response = await http.get(Uri.parse('${_baseUrl}courses/')); 
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+        
+        final List<Map<String, String>> courses = jsonList.map((item) {
+          
+          final teacherData = item['teacher'];
+          String instructorName = "Öğretmen Yok";
+          if (teacherData != null && teacherData is Map && teacherData.containsKey('fullname')) {
+            instructorName = teacherData['fullname'] as String;
+          }
+          
+          return {
+            'id': item['courseid'].toString(),    // Course Detail için gerekli ID
+            'code': item['coursecode'] as String,    // Django Model: coursecode
+            'title': item['coursename'] as String,  // Django Model: coursename
+            'instructor': instructorName,           // Django Serializer: teacher.fullname
+          };
+        }).toList();
+
+        setState(() {
+          _fetchedPopularCourses = courses;
+        });
+
+      } else {
+        print('Kurslar yüklenirken hata oluştu. Durum kodu: ${response.statusCode}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Popüler kurslar yüklenemedi. Sunucu hatası.')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Ağ hatası: $e');
+      if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sunucuya bağlanılamadı. Backend adresini kontrol edin.')),
+          );
+        }
+    } finally {
+      setState(() {
+        _isLoadingCourses = false; // Yükleme bitti
+      });
+    }
+  }
+  
+  // -----------------------------------------------------------------
+  // WIDGET BUILD METODU
+  // -----------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -81,25 +145,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final ColorScheme colorScheme = theme.colorScheme;
 
     return Scaffold(
-      // 1. Arka Plan Rengi: Temanın ana arka plan rengi kullanılacak.
       backgroundColor: theme.scaffoldBackgroundColor,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 🔍 Arama Kutusu
           TextField(
-            // theme.inputDecorationTheme'ı kullanacak
             decoration: InputDecoration(
               hintText: "Kurs ara...",
               prefixIcon: Icon(
                 Icons.search,
-                // İkon rengi temadan çekilecek.
                 color: colorScheme.onSurface.withOpacity(0.6), 
               ),
-              // fillColor, AppTheme'daki inputDecorationTheme'dan geliyor.
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-              // border stili AppTheme'dan geliyor.
             ),
           ),
           const SizedBox(height: 16),
@@ -110,18 +169,22 @@ class _HomeScreenState extends State<HomeScreen> {
           ...posts.map((post) => _buildPostCard(post, theme, colorScheme)).toList(),
           const SizedBox(height: 20),
 
-          // 💻 Popüler Kurslar
+          // 💻 Popüler Kurslar (DİNAMİK BÖLÜM)
           _buildSectionTitle("Popüler Kurslar", theme, colorScheme, isSearchable: true),
           const SizedBox(height: 12),
           SizedBox(
             height: 130,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: popularCourses.length,
-              itemBuilder: (context, index) {
-                return _buildSingleCourseCard(context, popularCourses[index], theme, colorScheme);
-              },
-            ),
+            child: _isLoadingCourses
+                ? Center(child: CircularProgressIndicator(color: colorScheme.primary)) 
+                : _fetchedPopularCourses.isEmpty 
+                    ? Center(child: Text("Popüler kurs bulunamadı.", style: TextStyle(color: colorScheme.onSurfaceVariant))) 
+                    : ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _fetchedPopularCourses.length,
+                        itemBuilder: (context, index) {
+                          return _buildSingleCourseCard(context, _fetchedPopularCourses[index], theme, colorScheme);
+                        },
+                      ),
           ),
           const SizedBox(height: 20),
 
@@ -130,10 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildProjectStatusCard(theme, colorScheme),
         ],
       ),
-      // ... HomeScreen içinde ...
-
       floatingActionButton: FloatingActionButton(
-        // FAB rengi: Colors.blueAccent yerine primary veya secondary kullanılabilir.
         backgroundColor: colorScheme.secondary,
         onPressed: () async {
           final result = await Navigator.push(
@@ -142,24 +202,37 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           if (result != null && result is Map<String, dynamic>) {
             setState(() {
-              posts.insert(0, result);
+              posts.insert(0, {
+                'username': result['username'] ?? 'Sen',
+                'title': result['title'] ?? 'Genel',
+                'profilePic': result['profilePic'] ?? 'https://i.pravatar.cc/150?img=12',
+                'time': result['time'] ?? 'şimdi',
+                'image': result['image'], 
+                'filePath': result['filePath'], 
+                'fileName': result['fileName'], 
+                'text': result['text'],
+                'likes': result['likes'] ?? 0,
+                'comments': result['comments'] ?? 0,
+                'shares': result['shares'] ?? 0,
+              });
             });
           }
         },
-        // İkon rengi: `onSecondary` rengi, `secondary` üzerindeki rengi belirler.
         child: Icon(Icons.add, color: colorScheme.onSecondary),
       ),
     );
   }
+  
+  // -----------------------------------------------------------------
+  // YARDIMCI WIDGET METOTLARI
+  // -----------------------------------------------------------------
 
-  // 🔹 Başlık + Tümünü Gör satırı
   Widget _buildSectionTitle(String title, ThemeData theme, ColorScheme colorScheme, {bool isSearchable = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
-          // 2. Başlık metin rengi temadan çekilecek.
           style: theme.textTheme.headlineMedium?.copyWith(fontSize: 17),
         ),
         TextButton(
@@ -173,7 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
           },
           child: Text(
             "Tümünü Gör",
-            // 3. TextButton metin rengi temadan çekilecek (primary).
             style: TextStyle(color: colorScheme.primary),
           ),
         )
@@ -182,6 +254,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
+     final hasFile = post['filePath'] != null && post['fileName'] != null;
+    final isImageFile = hasFile && 
+                        (post['fileName'].toString().toLowerCase().endsWith('.jpg') ||
+                         post['fileName'].toString().toLowerCase().endsWith('.jpeg') ||
+                         post['fileName'].toString().toLowerCase().endsWith('.png'));
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -192,10 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
       child: Card(
-        // 4. Card rengi: Sabit Colors.white yerine tema kart rengi kullanılacak.
-        // CardTheme'da zaten tanımladınız, bu yüzden sadece Card() yeterli.
         margin: const EdgeInsets.only(bottom: 14),
-        // shape, elevation, shadowColor CardTheme'dan geliyor.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -206,7 +281,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   CircleAvatar(
                     radius: 20,
                     backgroundImage: NetworkImage(post['profilePic']!),
-                    // CircleAvatar arka plan rengi temadan çekilecek.
                     backgroundColor: colorScheme.surfaceVariant, 
                   ),
                   const SizedBox(width: 10),
@@ -218,7 +292,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          // 5. Metin rengi temadan çekilecek (onSurface).
                           color: colorScheme.onSurface, 
                         ),
                       ),
@@ -227,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          // 6. Badge arka plan rengi temadan çekilecek (primary'nin hafif versiyonu).
                           color: colorScheme.primaryContainer, 
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -235,7 +307,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           post['title']!,
                           style: TextStyle(
                             fontSize: 11,
-                            // 7. Badge metin rengi temadan çekilecek (onPrimaryContainer).
                             color: colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.w500,
                           ),
@@ -246,49 +317,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            if (post['image'] != null) ...[
-              Image.network(
-                post['image'],
-                width: double.infinity,
-                height: 220,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    height: 220,
-                    // 8. Placeholder arka plan rengi temadan çekilecek.
-                    color: colorScheme.surfaceVariant, 
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                        strokeWidth: 2,
-                        // 9. Progress Indicator rengi temadan çekilecek.
-                        color: colorScheme.primary, 
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 220,
-                  // 10. Hata arka plan rengi temadan çekilecek.
-                  color: colorScheme.surfaceVariant, 
-                  child: Center(
-                    // 11. Hata ikon rengi temadan çekilecek.
-                    child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)), 
-                  ),
-                ),
-              ),
+            
+            if (post['image'] != null) ...[ 
+              _buildNetworkImage(post['image'], colorScheme),
+            ] else if (hasFile) ...[
+              if (isImageFile) 
+                _buildLocalImage(post['filePath'], colorScheme)
+              else
+                _buildFileDownloadCard(post['fileName'], post['filePath'], colorScheme, theme),
             ],
+
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Text(
                 post['text'],
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontSize: 16,
-                  // 12. İçerik metin rengi temadan çekilecek.
                   color: colorScheme.onSurface, 
                   height: 1.5,
                 ),
@@ -320,7 +364,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Text(
                     post['time'],
-                    // 13. Zaman metin rengi temadan çekilecek.
                     style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), 
                   ),
                 ],
@@ -331,34 +374,137 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  
+  // URL'den yüklenen resim
+  Widget _buildNetworkImage(String url, ColorScheme colorScheme) {
+      return Image.network(
+        url,
+        width: double.infinity,
+        height: 220,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: 220,
+            color: colorScheme.surfaceVariant,
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+                color: colorScheme.primary, 
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 220,
+          color: colorScheme.surfaceVariant,
+          child: Center(
+            child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)), 
+          ),
+        ),
+      );
+  }
+
+  // Yerel dosyadan yüklenen resim
+  Widget _buildLocalImage(String filePath, ColorScheme colorScheme) {
+      return Image.file(
+        File(filePath),
+        width: double.infinity,
+        height: 220,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          height: 220,
+          color: colorScheme.surfaceVariant,
+          child: Center(
+            child: Text(
+              'Görsel yüklenemedi (Yerel dosya)',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ),
+      );
+  }
+
+  // Dosya indirme kartı (Resim dışındaki dosyalar için)
+  Widget _buildFileDownloadCard(String fileName, String filePath, ColorScheme colorScheme, ThemeData theme) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+        child: InkWell(
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Dosya indirme simülasyonu başlatıldı: $fileName'),
+                backgroundColor: colorScheme.secondary,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.insert_drive_file, color: colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    fileName,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.download, color: colorScheme.primary),
+              ],
+            ),
+          ),
+        ),
+      );
+  }
+
 
   // Dinamik ikon oluşturucu
   Widget _buildActionIcon(IconData icon, ColorScheme colorScheme) {
-    // 14. İkon rengi temadan çekilecek.
     return Icon(icon, size: 20, color: colorScheme.onSurface.withOpacity(0.6));
   }
 
+  // Popüler Kurs Kartı (GÜNCELLENDİ: Navigasyon ve Metin Kısıtlaması)
   Widget _buildSingleCourseCard(
       BuildContext context, Map<String, String> courseData, ThemeData theme, ColorScheme colorScheme) {
     return GestureDetector(
       onTap: () {
-        // Tıklanınca CourseDetailScreen'e git
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const CourseDetailScreen()),
-        );
+        // ID'yi al ve CourseDetailScreen'e gönder
+        final courseId = int.tryParse(courseData['id'] ?? '0');
+        
+        if (courseId != null && courseId != 0) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CourseDetailScreen(courseId: courseId), 
+              ),
+            );
+        } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Kurs ID bilgisi eksik.')),
+            );
+        }
       },
       child: Container(
         width: 180,
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          // 15. Container rengi: Sabit Colors.white yerine tema yüzey rengi kullanılacak.
           color: colorScheme.surface, 
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              // 16. Shadow rengi temadan çekilecek.
               color: colorScheme.shadow.withOpacity(theme.brightness == Brightness.light ? 0.1 : 0.4), 
               spreadRadius: 1,
               blurRadius: 5,
@@ -372,7 +518,6 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               courseData['code']!,
               style: TextStyle(
-                // 17. Kurs kodu rengi temadan çekilecek.
                 color: colorScheme.primary, 
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
@@ -381,21 +526,25 @@ class _HomeScreenState extends State<HomeScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Kurs Adı: Max 2 satır, sığmazsa "..."
                 Text(
-                  courseData['title']!,
+                  courseData['title']!, 
+                  maxLines: 2, 
+                  overflow: TextOverflow.ellipsis, 
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    // 18. Kurs başlık rengi temadan çekilecek.
                     color: colorScheme.onSurface, 
                   ),
                 ),
                 const SizedBox(height: 4),
+                // Eğitmen Adı: Max 1 satır, sığmazsa "..."
                 Text(
-                  courseData['instructor']!,
+                  courseData['instructor']!, 
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 13,
-                    // 19. Eğitmen adı rengi temadan çekilecek.
                     color: colorScheme.onSurfaceVariant, 
                   ),
                 ),
@@ -409,7 +558,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildScoreCard(ThemeData theme, ColorScheme colorScheme) {
     return Card(
-      // Card Theme'da renkler tanımlı olduğu için Card() yeterli.
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -420,7 +568,6 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(
                   Icons.emoji_events_outlined,
-                  // 20. İkon rengi temadan çekilecek.
                   color: colorScheme.primary, 
                 ),
                 const SizedBox(width: 8),
@@ -429,7 +576,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    // 21. Başlık rengi temadan çekilecek.
                     color: colorScheme.onSurface, 
                   ),
                 ),
@@ -440,7 +586,6 @@ class _HomeScreenState extends State<HomeScreen> {
               'Sıralamanız',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                // 22. Metin rengi temadan çekilecek.
                 color: colorScheme.onSurfaceVariant, 
               ),
             ),
@@ -450,7 +595,6 @@ class _HomeScreenState extends State<HomeScreen> {
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                // 23. Önemli metin rengi temadan çekilecek.
                 color: colorScheme.primary, 
               ),
             ),
@@ -465,7 +609,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text(
                 'Detayları Gör',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  // 24. TextButton rengi temadan çekilecek.
                   color: colorScheme.primary, 
                   fontWeight: FontWeight.w600,
                 ),
@@ -479,7 +622,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildProjectStatusCard(ThemeData theme, ColorScheme colorScheme) {
     return Card(
-      // Card Theme'da renkler tanımlı olduğu için Card() yeterli.
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -490,8 +632,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(
                   Icons.assignment_turned_in_outlined,
-                  // 25. İkon rengi: Sabit yeşil yerine temadan çekilecek (ya da success/tertiary renk).
-                  color: colorScheme.tertiary, // Örn. primary, secondary veya tertiary
+                  color: colorScheme.tertiary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -499,7 +640,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    // 26. Başlık rengi temadan çekilecek.
                     color: colorScheme.onSurface, 
                   ),
                 ),
@@ -510,7 +650,6 @@ class _HomeScreenState extends State<HomeScreen> {
               'Teslim Edilen Projeler',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                // 27. Metin rengi temadan çekilecek.
                 color: colorScheme.onSurfaceVariant, 
               ),
             ),
@@ -520,7 +659,6 @@ class _HomeScreenState extends State<HomeScreen> {
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                // 28. Önemli metin rengi temadan çekilecek.
                 color: colorScheme.onSurface, 
               ),
             ),
@@ -535,7 +673,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text(
                 'Detayları Gör',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  // 29. TextButton rengi temadan çekilecek.
                   color: colorScheme.primary, 
                   fontWeight: FontWeight.w600,
                 ),
