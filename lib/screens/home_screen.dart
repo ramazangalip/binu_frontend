@@ -1,6 +1,7 @@
 import 'dart:io'; 
-import 'dart:convert'; // JSON işlemleri için eklendi
-import 'package:http/http.dart' as http; // HTTP istekleri için eklendi
+import 'dart:convert';
+import 'package:binu_frontend/models/post_model.dart';
+import 'package:http/http.dart' as http;
 import 'package:binu_frontend/screens/course_detail_screen.dart';
 import 'package:binu_frontend/screens/leaderboard_screen.dart';
 import 'package:binu_frontend/screens/new_post_screen.dart';
@@ -23,63 +24,27 @@ class _HomeScreenState extends State<HomeScreen> {
   // -----------------------------------------------------------------
   List<Map<String, String>> _fetchedPopularCourses = []; 
   bool _isLoadingCourses = true; 
+
+  // 🌟 GÖNDERİLER İÇİN YENİ ALANLAR
+  List<Map<String, dynamic>> _fetchedPosts = [];
+  bool _isLoadingPosts = true; 
   
-  // Django sunucunuzun temel adresi (Emulator için 10.0.2.2)
   static const String _baseUrl = 'http://10.0.2.2:8000/api/'; 
   // -----------------------------------------------------------------
 
-  final List<Map<String, dynamic>> posts = [
-    {
-      'username': 'Ayşe Yıldız',
-      'title': 'Bilgisayar Mühendisliği',
-      'profilePic': 'https://picsum.photos/50/50?random=1',
-      'time': '2 saat önce',
-      'image': 'https://picsum.photos/400/250?1',
-      'text':
-          'Yapılan son hackathon\'dan anılar... Harika bir deneyimdi!',
-      'likes': 124,
-      'comments': 32,
-      'shares': 5,
-      'filePath': null, 
-      'fileName': null, 
-    },
-    {
-      'username': 'Mehmet Demir',
-      'title': 'Makine Mühendisliği',
-      'profilePic': 'https://picsum.photos/50/50?random=2',
-      'time': '3 saat önce',
-      'image': 'https://picsum.photos/400/250?2',
-      'text':
-          'Yeni laboratuvar çalışmamız tamamlandı. Çok yakında denemelere başlıyoruz.',
-      'likes': 22,
-      'comments': 1,
-      'shares': 2,
-      'filePath': null, 
-      'fileName': null, 
-    },
-    {
-      'username': 'Zeynep Kara',
-      'title': 'Endüstri Mühendisliği',
-      'profilePic': 'https://picsum.photos/50/50?random=3',
-      'time': '5 saat önce',
-      'image': null,
-      'text': 'Öğle yemeği molası! Kampüs kafeteryasından selamlar 👋',
-      'likes': 15,
-      'comments': 3,
-      'shares': 1,
-      'filePath': null, 
-      'fileName': null, 
-    },
-  ];
-  
+  // Artık kullanılan `posts` listesi yerine dinamik olarak çekilen _fetchedPosts kullanılacak.
+  // Ancak `NewPostScreen`'den gelen yeni postları geçici olarak listeye eklemek için
+  // bu listeyi canlı tutabiliriz. Şimdilik eski yerel post listesini kaldırıyorum.
+
   @override
   void initState() {
     super.initState();
     _fetchPopularCourses();
+    _fetchPosts(); // 👈 Gönderileri çekmeyi başlat
   }
-
+  
   // -----------------------------------------------------------------
-  // API'den Popüler Kurs Verilerini Çeken Metot (GÜNCELLENDİ)
+  // API'den Popüler Kurs Verilerini Çeken Metot (MEVCUT)
   // -----------------------------------------------------------------
   Future<void> _fetchPopularCourses() async {
     setState(() {
@@ -87,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // CourseViewSet için standart URL: /courses/
       final response = await http.get(Uri.parse('${_baseUrl}courses/')); 
       
       if (response.statusCode == 200) {
@@ -102,10 +66,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           
           return {
-            'id': item['courseid'].toString(),    // Course Detail için gerekli ID
-            'code': item['coursecode'] as String,    // Django Model: coursecode
-            'title': item['coursename'] as String,  // Django Model: coursename
-            'instructor': instructorName,           // Django Serializer: teacher.fullname
+            'id': item['courseid'].toString(),
+            'code': item['coursecode'] as String,
+            'title': item['coursename'] as String,
+            'instructor': instructorName,
           };
         }).toList();
 
@@ -115,26 +79,102 @@ class _HomeScreenState extends State<HomeScreen> {
 
       } else {
         print('Kurslar yüklenirken hata oluştu. Durum kodu: ${response.statusCode}');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Popüler kurslar yüklenemedi. Sunucu hatası.')),
-          );
-        }
+      }
+    } catch (e) {
+      print('Ağ hatası: $e');
+    } finally {
+      setState(() {
+        _isLoadingCourses = false; 
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // API'den Gönderi Verilerini Çeken Metot (YENİ)
+  // -----------------------------------------------------------------
+  Future<void> _fetchPosts() async {
+    setState(() {
+      _isLoadingPosts = true;
+    });
+    
+    // API'den gönderileri çekmek için token gerekebilir. 
+    // Basitlik adına şimdilik token'ı atlıyoruz, ancak gerçek uygulamada Authorization header eklenmeli.
+    try {
+      final response = await http.get(Uri.parse('${_baseUrl}posts/')); 
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+        
+        // Gelen API verisini uygulama formatına dönüştürme
+        final List<Map<String, dynamic>> posts = jsonList.map((item) {
+          
+          // API'den gelen verileri Flutter'da beklenen alanlarla eşleştirme
+          final userData = item['user'] as Map<String, dynamic>;
+          
+          return {
+            'postid': item['postid'], // Post Detail'a gitmek için
+            'username': userData['fullname'] as String,
+            'title': userData['role']?['rolename'] ?? 'Kullanıcı', // Kullanıcı rolünü başlık olarak kullan
+            // 👈 BURASI GÜNCELLENDİ: Eğer boşsa null olarak bırakın
+            'profilePic': userData['profileimageurl'],
+            'time': _formatTimeAgo(item['createdat'] as String), // Zamanı formatlamak için yardımcı metot
+            'image': item['imageurl'], // API'den gelen imageurl
+            'text': item['textcontent'] as String,
+            
+            // Etkileşim verileri
+            'likes': item['likes_count'] as int,
+            'comments': (item['comments'] as List).length, // Yorum listesinin uzunluğu
+            'shares': item['sharecount'] as int, 
+            'filePath': null, 
+            'fileName': null, 
+          };
+        }).toList();
+
+        setState(() {
+          _fetchedPosts = posts;
+        });
+      } else {
+        print('Gönderiler yüklenirken hata oluştu. Durum kodu: ${response.statusCode}');
       }
     } catch (e) {
       print('Ağ hatası: $e');
       if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sunucuya bağlanılamadı. Backend adresini kontrol edin.')),
+            const SnackBar(content: Text('Gönderiler yüklenemedi. Sunucuya bağlanılamadı.')),
           );
         }
     } finally {
       setState(() {
-        _isLoadingCourses = false; // Yükleme bitti
+        _isLoadingPosts = false; 
       });
     }
   }
   
+  // -----------------------------------------------------------------
+  // YARDIMCI ZAMAN METODU
+  // -----------------------------------------------------------------
+  String _formatTimeAgo(String iso8601String) {
+    try {
+      final dateTime = DateTime.parse(iso8601String);
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays > 7) {
+        return '${difference.inDays ~/ 7} hafta önce';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} gün önce';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} saat önce';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} dakika önce';
+      } else {
+        return 'şimdi';
+      }
+    } catch (e) {
+      return 'Bilinmeyen zaman';
+    }
+  }
+
   // -----------------------------------------------------------------
   // WIDGET BUILD METODU
   // -----------------------------------------------------------------
@@ -163,13 +203,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 🧑‍🤝‍🧑 Takip Ettiklerin
+          // 🧑‍🤝‍🧑 Takip Ettiklerin (DİNAMİK BÖLÜM - _fetchedPosts kullanılıyor)
           _buildSectionTitle("Takip Ettiklerin", theme, colorScheme),
           const SizedBox(height: 8),
-          ...posts.map((post) => _buildPostCard(post, theme, colorScheme)).toList(),
+          
+          if (_isLoadingPosts)
+            Center(child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(color: colorScheme.primary),
+            ))
+          else if (_fetchedPosts.isEmpty)
+            Center(child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Text("Gönderi akışı boş.", style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            ))
+          else 
+            ..._fetchedPosts.map((post) => _buildPostCard(post, theme, colorScheme)).toList(),
+          
           const SizedBox(height: 20),
 
-          // 💻 Popüler Kurslar (DİNAMİK BÖLÜM)
+          // 💻 Popüler Kurslar (DİNAMİK BÖLÜM - _fetchedPopularCourses kullanılıyor)
           _buildSectionTitle("Popüler Kurslar", theme, colorScheme, isSearchable: true),
           const SizedBox(height: 12),
           SizedBox(
@@ -196,26 +249,13 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: colorScheme.secondary,
         onPressed: () async {
+          // Yeni post eklendikten sonra post akışını yenilemek için kullanılır.
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const NewPostScreen()),
           );
-          if (result != null && result is Map<String, dynamic>) {
-            setState(() {
-              posts.insert(0, {
-                'username': result['username'] ?? 'Sen',
-                'title': result['title'] ?? 'Genel',
-                'profilePic': result['profilePic'] ?? 'https://i.pravatar.cc/150?img=12',
-                'time': result['time'] ?? 'şimdi',
-                'image': result['image'], 
-                'filePath': result['filePath'], 
-                'fileName': result['fileName'], 
-                'text': result['text'],
-                'likes': result['likes'] ?? 0,
-                'comments': result['comments'] ?? 0,
-                'shares': result['shares'] ?? 0,
-              });
-            });
+          if (result == true) { // Eğer başarılı bir gönderi oluşturulduysa (örneğin NewPostScreen'den döndüğünde true dönerse)
+            _fetchPosts(); // Post akışını yenile
           }
         },
         child: Icon(Icons.add, color: colorScheme.onSecondary),
@@ -224,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   // -----------------------------------------------------------------
-  // YARDIMCI WIDGET METOTLARI
+  // YARDIMCI WIDGET METOTLARI (Aynı Kaldı)
   // -----------------------------------------------------------------
 
   Widget _buildSectionTitle(String title, ThemeData theme, ColorScheme colorScheme, {bool isSearchable = false}) {
@@ -253,21 +293,45 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
-     final hasFile = post['filePath'] != null && post['fileName'] != null;
+  // HomeScreen > _HomeScreenState içinde
+
+// HomeScreen > _HomeScreenState içinde
+
+Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
+    // ... (dosya ve resim kontrolleri aynı kalır)
+    final hasFile = post['filePath'] != null && post['fileName'] != null;
+    final hasImage = post['image'] != null && (post['image'] as String).isNotEmpty;
     final isImageFile = hasFile && 
                         (post['fileName'].toString().toLowerCase().endsWith('.jpg') ||
                          post['fileName'].toString().toLowerCase().endsWith('.jpeg') ||
                          post['fileName'].toString().toLowerCase().endsWith('.png'));
 
+    // Profil fotoğrafı URL'si var mı kontrolü
+    // API'den gelen veride 'profilePic' alanı genellikle NetworkImage'a uygundur.
+    final profilePicUrl = post['profilePic'];
+    final bool hasProfilePic = profilePicUrl != null && (profilePicUrl as String).isNotEmpty;
+
+
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PostDetailScreen(postData: post),
-          ),
-        );
+        try {
+          // 🌟 ÇÖZÜM: Map'i (post) Post modeline dönüştürme
+          final Post postModel = Post.fromJson(post); 
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              // Artık PostDetailScreen, beklediği Post modelini alıyor.
+              builder: (context) => PostDetailScreen(post: postModel), 
+            ),
+          );
+        } catch (e) {
+            // Dönüşüm hatası durumunda (örneğin eksik alanlar varsa)
+            print('Post modeline dönüştürme hatası: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Gönderi detayları yüklenirken bir hata oluştu.')),
+            );
+        }
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 14),
@@ -278,13 +342,34 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 children: [
+                  // 🌟 GÜNCELLENEN KISIM: Profil Fotoğrafı Kontrolü
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: NetworkImage(post['profilePic']!),
-                    backgroundColor: colorScheme.surfaceVariant, 
+                    // Eğer fotoğraf URL'si varsa NetworkImage kullan
+                    backgroundImage: hasProfilePic 
+                        ? NetworkImage(profilePicUrl) 
+                        : null, // Yoksa backgroundImage null kalır, child gösterilir.
+                    
+                    // Eğer fotoğraf yoksa ikon göster
+                    child: hasProfilePic
+                        ? null // Fotoğraf varsa child null olmalı
+                        : Icon(
+                            Icons.person, // Varsayılan kişi ikonu
+                            size: 25, 
+                            color: colorScheme.onPrimary, // İkon rengini temadan çekiyoruz
+                          ),
+                          
+                    // Profil avatarının arka plan rengini temadan çekiyoruz
+                    // Eğer fotoğraf yoksa, ikonun arka planı primary renk olabilir.
+                    backgroundColor: hasProfilePic 
+                        ? colorScheme.surfaceVariant 
+                        : colorScheme.primary, 
                   ),
+                  // 🌟 GÜNCELLEME SONU
+
                   const SizedBox(width: 10),
                   Column(
+                    // ... (Kullanıcı Adı ve Başlık (Rol) kısmı aynı kalır) ...
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -318,7 +403,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             
-            if (post['image'] != null) ...[ 
+            // ... (Resim/Dosya Görüntüleme Mantığı aynı kalır) ...
+            if (hasImage) ...[ 
               _buildNetworkImage(post['image'], colorScheme),
             ] else if (hasFile) ...[
               if (isImageFile) 
@@ -326,6 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
               else
                 _buildFileDownloadCard(post['fileName'], post['filePath'], colorScheme, theme),
             ],
+            // ... (Metin ve Etkileşim İkonları aynı kalır) ...
 
             Padding(
               padding: const EdgeInsets.all(12.0),
@@ -475,12 +562,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Icon(icon, size: 20, color: colorScheme.onSurface.withOpacity(0.6));
   }
 
-  // Popüler Kurs Kartı (GÜNCELLENDİ: Navigasyon ve Metin Kısıtlaması)
+  // Popüler Kurs Kartı
   Widget _buildSingleCourseCard(
       BuildContext context, Map<String, String> courseData, ThemeData theme, ColorScheme colorScheme) {
     return GestureDetector(
       onTap: () {
-        // ID'yi al ve CourseDetailScreen'e gönder
         final courseId = int.tryParse(courseData['id'] ?? '0');
         
         if (courseId != null && courseId != 0) {

@@ -1,12 +1,15 @@
-import 'package:binu_frontend/services/notification_service.dart'; // Servis Eklendi
 import 'package:flutter/material.dart';
+import 'package:binu_frontend/services/notification_service.dart';
+import 'package:binu_frontend/services/api_service.dart';
+import 'package:binu_frontend/models/post_model.dart'; // Post, User, Comment modelleriniz buradan geliyor
 
 class PostDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> postData;
+  // Parametre Map yerine doğrudan Post modeli olarak güncellendi.
+  final Post post;
 
   const PostDetailScreen({
     Key? key,
-    required this.postData,
+    required this.post,
   }) : super(key: key);
 
   @override
@@ -14,115 +17,203 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
-  final NotificationService _notificationService = NotificationService(); // Servis Örneği
+  final NotificationService _notificationService = NotificationService();
+  final ApiService _apiService = ApiService();
   final TextEditingController _commentController = TextEditingController();
-  
-  // Beğeni durumu (Simülasyon için)
-  bool isLiked = false;
-  int likeCount = 0;
 
-  List<Map<String, dynamic>> _comments = [
-    {
-      'user': 'Elif Kaya',
-      'username': '@elifkaya',
-      'avatar': 'https://i.pravatar.cc/150?img=4',
-      'comment': 'Kesinlikle! Ben de çok etkilendim.',
-      'time': '5 dakika önce',
-    },
-    // ... diğer yorumlar
-  ];
+  // State'i yönetmek için widget.post'tan bir kopya oluşturuyoruz (mutasyon için)
+  late Post _currentPost;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Backend'den gelen veriyi güvenli şekilde al
-    // Not: Home Screen'den gelen postData'da 'likes' ve 'comments' var, bu yüzden onları kullanmalıyız.
-    likeCount = widget.postData['likes'] ?? 0;
-    
-    // Varsayılan olarak isLiked durumu yok, simülasyon için false
-    isLiked = false; 
-  }
-  
-  void _toggleLike() {
-    setState(() {
-      isLiked = !isLiked;
-      if (isLiked) {
-        likeCount++;
-        // BİLDİRİM EKLEME (Simülasyon)
-        _notificationService.addNotification(
-          type: 'like',
-          user: 'Sen', 
-          avatar: 'https://i.pravatar.cc/150?img=12', // Senin avatarın (Varsayılan)
-          content: 'bu gönderiyi beğendin.', 
-        );
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            // Snackbar renkleri temadan alınacak
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            content: Text(
-              'Gönderiyi beğendin ❤️', 
-              style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)
-            ), 
-            duration: const Duration(milliseconds: 500)
-          ),
-        );
-      } else {
-        likeCount--;
-      }
-    });
+    // Başlangıçta gelen post verilerini kullan
+    _currentPost = widget.post;
+
+    // Post detay ekranı açıldığında güncel verileri çek
+    _fetchPostData();
   }
 
-  void _addComment() {
-    if (_commentController.text.trim().isEmpty) return;
-    
-    final newCommentText = _commentController.text;
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
 
-    setState(() {
-      _comments.add({
-        'user': 'Sen',
-        'username': '@sen',
-        'avatar': 'https://i.pravatar.cc/150?img=12',
-        'comment': newCommentText,
-        'time': 'Şimdi',
+  // -------------------------------------------------------------
+  // API İŞLEMLERİ (Model Kullanımı)
+  // -------------------------------------------------------------
+
+  // Post detaylarını (yorumlar ve beğeni durumu dahil) API'den çeker
+  Future<void> _fetchPostData() async {
+    try {
+      // getPost metodu, yorumları ve beğeni durumunu içinde barındıran tam Post objesini döner
+      final updatedPost = await _apiService.getPost(_currentPost.postid);
+
+      setState(() {
+        _currentPost = updatedPost;
+        _isLoading = false;
       });
-    });
-    
-    // BİLDİRİM EKLEME
-    _notificationService.addNotification(
-        type: 'comment',
-        user: 'Sen',
-        avatar: 'https://i.pravatar.cc/150?img=12',
-        content: 'bu gönderiye yorum yaptın: "$newCommentText"',
-    );
+    } catch (e) {
+      print('Post detayları çekerken hata: $e');
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gönderi detayları yüklenemedi: ${e.toString()}')),
+        );
+      }
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
+
+  // Beğenme/Beğeniyi Kaldırma API'si
+  void _toggleLike() async {
+    // Optimistik güncelleme
+    final bool previousLikedState = _currentPost.isLikedByUser;
+    final int previousLikeCount = _currentPost.likesCount;
+
+    setState(() {
+      _currentPost = _currentPost.copyWith(
+        isLikedByUser: !previousLikedState,
+        likesCount: previousLikedState ? previousLikeCount - 1 : previousLikeCount + 1,
+      );
+    });
+
+    if (_currentPost.isLikedByUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          content: Text('Gönderiyi beğendin ❤️', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+          duration: const Duration(milliseconds: 500)
+        ),
+      );
+    }
+
+    try {
+      final result = await _apiService.likePost(_currentPost.postid);
+
+      // Eğer API cevabı optimistik güncellemeyle çelişirse (örn: sunucu hatası), UI'ı API'den gelen son duruma göre güncelle.
+      // Django'dan dönen liked: true/false değerini kullanıyoruz.
+      if(result['liked'] != _currentPost.isLikedByUser) {
+        await _fetchPostData(); // Hata oluşursa post'u yeniden çek
+      }
+
+      if (result['liked'] == true) {
+        _notificationService.addNotification(
+          type: 'like', user: 'Sen', avatar: '', content: 'bu gönderiyi beğendin.',
+        );
+      }
+
+    } catch (e) {
+      // Hata durumunda UI'ı geri al (rollback)
+      setState(() {
+        _currentPost = _currentPost.copyWith(
+          isLikedByUser: previousLikedState,
+          likesCount: previousLikeCount,
+        );
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Beğeni işlemi başarısız: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  // Yorum Ekleme API'si
+  void _addComment() async {
+    if (_commentController.text.trim().isEmpty) return;
+
+    final newCommentText = _commentController.text;
     _commentController.clear();
-    FocusScope.of(context).unfocus(); // Klavyeyi kapat
-    
+    FocusScope.of(context).unfocus();
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        // Snackbar renkleri temadan alınacak
         backgroundColor: Theme.of(context).colorScheme.secondary,
-        content: Text(
-          'Yorumun gönderildi 💬', 
-          style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)
-        ), 
-        duration: const Duration(milliseconds: 800)
+        content: Text('Yorum gönderiliyor...', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+        duration: const Duration(seconds: 1)
       ),
     );
+
+    try {
+      await _apiService.addComment(
+        postId: _currentPost.postid,
+        commentText: newCommentText,
+      );
+
+      // Yorumları yeniden çekerek listeyi güncelle (bu, _currentPost'u güncelleyecektir)
+      await _fetchPostData();
+
+      // BİLDİRİM EKLEME
+      _notificationService.addNotification(
+        type: 'comment',
+        user: 'Sen',
+        avatar: '',
+        content: 'bu gönderiye yorum yaptın: "$newCommentText"',
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Theme.of(context).colorScheme.secondary,
+            content: Text('Yorumun başarıyla gönderildi 💬', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
+            duration: const Duration(milliseconds: 800)
+          ),
+        );
+      }
+
+    } catch (e) {
+      print('Yorum eklenirken hata: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Yorum gönderilemedi: ${e.toString()}')),
+        );
+      }
+    }
   }
+
+  // Zaman formatlama metodu (Modelden gelen DateTime nesnesini kullanır)
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 7) {
+      return '${difference.inDays ~/ 7} hafta önce';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} gün önce';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} saat önce';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} dakika önce';
+    } else {
+      return 'şimdi';
+    }
+  }
+
+  // -------------------------------------------------------------
+  // WIDGET BUILD METODU VE ALT METOTLAR (Model Kullanımı)
+  // -------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
-    
+
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Gönderi Yükleniyor...')),
+        body: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+      );
+    }
+
     return Scaffold(
-      // Arka plan rengini temadan al
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Gönderi'),
-        // AppBar stili AppTheme'dan otomatik gelir
         elevation: 0.5,
       ),
       body: Column(
@@ -145,12 +236,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   // Ana gönderi içeriği
   Widget _buildPostContent(ThemeData theme, ColorScheme colorScheme) {
-    // Null safety kontrolleri
-    final user = widget.postData['user'];
-    final username = (user is Map) ? (user['username'] ?? 'Anonim') : (widget.postData['username'] ?? 'Anonim');
-    final profilePic = (user is Map) ? (user['profileimageurl'] ?? '') : (widget.postData['profilePic'] ?? '');
-    final content = (widget.postData['textcontent'] ?? widget.postData['text'] ?? '');
-    final imageUrl = widget.postData['imageurl'] ?? widget.postData['image'];
+    // Doğrudan modelden erişim
+    final user = _currentPost.user;
+    final profilePic = user.profileimageurl;
+    final imageUrl = _currentPost.imageurl;
+
+    // Profil fotoğrafı kontrolü
+    final bool hasProfilePic = profilePic != null && profilePic.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -161,22 +253,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundImage: NetworkImage(profilePic),
-                // Avatar placeholder rengini temadan al
-                backgroundColor: colorScheme.surfaceVariant, 
-                onBackgroundImageError: (_,__) {},
+                backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
+                child: hasProfilePic ? null : Icon(Icons.person, size: 30, color: colorScheme.onPrimary),
+                backgroundColor: hasProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
+                onBackgroundImageError: hasProfilePic ? (e, s) => {} : null,
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    username,
+                    user.fullname, // Modelden
                     style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold, 
+                      fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      // Metin rengini temadan al
-                      color: colorScheme.onSurface, 
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -186,28 +277,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            content,
+            _currentPost.textcontent, // Modelden
             style: theme.textTheme.bodyLarge?.copyWith(
-              fontSize: 16, 
+              fontSize: 16,
               height: 1.5,
-              // Metin rengini temadan al
-              color: colorScheme.onSurface, 
+              color: colorScheme.onSurface,
             ),
           ),
-          if (imageUrl != null) ...[
+          if (imageUrl != null && imageUrl.isNotEmpty) ...[
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.network(
                 imageUrl,
-                // Resim yüklenirken veya hata oluşursa temaya uygun placeholder
                 loadingBuilder: (context, child, loadingProgress) {
-                   if (loadingProgress == null) return child;
-                   return Container(
-                     height: 200,
-                     color: colorScheme.surfaceVariant,
-                     child: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
-                   );
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    height: 200,
+                    color: colorScheme.surfaceVariant,
+                    child: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
+                  );
                 },
                 errorBuilder: (context, error, stackTrace) => Container(
                   height: 200,
@@ -228,20 +317,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: DefaultTextStyle(
         style: theme.textTheme.bodySmall!.copyWith(
-          // İstatistik metin rengini temadan al
           color: colorScheme.onSurfaceVariant,
         ),
         child: Row(
           children: [
-            Text(widget.postData['time'] ?? '10 dakika önce'),
-            const Text('  •  '),
+            Text(_formatTimeAgo(_currentPost.createdat)), // Modelden gelen DateTime
+            const Text('  •  '),
             const Text('1.250 Görüntüleme'),
-            const Text('  •  '),
+            const Text('  •  '),
             Text(
-              '$likeCount Beğeni', 
+              '${_currentPost.likesCount} Beğeni', // Modelden
               style: theme.textTheme.bodySmall!.copyWith(
-                fontWeight: FontWeight.bold, 
-                // Beğeni sayısının rengini temadan al
+                fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
               )
             ),
@@ -256,7 +343,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        // Çizgi rengini temadan al
         border: Border.symmetric(horizontal: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Row(
@@ -264,17 +350,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           // Yorum Sayısı Butonu
           _ActionButton(
-            icon: Icons.chat_bubble_outline, 
-            label: '${_comments.length}',
+            icon: Icons.chat_bubble_outline,
+            label: '${_currentPost.comments.length}', // Modelden
             colorScheme: colorScheme,
           ),
           // Yeniden Paylaş Butonu
           _ActionButton(
-            icon: Icons.repeat, 
-            label: widget.postData['shares']?.toString() ?? '4',
+            icon: Icons.repeat,
+            label: _currentPost.sharecount.toString(), // Modelden
             colorScheme: colorScheme,
           ),
-          
+
           // Tıklanabilir Beğeni Butonu
           InkWell(
             onTap: _toggleLike,
@@ -283,24 +369,22 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Row(
                 children: [
                   Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border, 
-                    // Beğenme rengini temadan al
-                    color: isLiked ? colorScheme.error : colorScheme.onSurfaceVariant,
+                    _currentPost.isLikedByUser ? Icons.favorite : Icons.favorite_border, // Modelden
+                    color: _currentPost.isLikedByUser ? colorScheme.error : colorScheme.onSurfaceVariant,
                     size: 24,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '$likeCount', 
+                    '${_currentPost.likesCount}', // Modelden
                     style: TextStyle(
-                      // Metin rengini temadan al
-                      color: isLiked ? colorScheme.error : colorScheme.onSurfaceVariant
+                      color: _currentPost.isLikedByUser ? colorScheme.error : colorScheme.onSurfaceVariant
                     )
                   ),
                 ],
               ),
             ),
           ),
-          
+
           // Kaydet Butonu
           _ActionButton(icon: Icons.bookmark_border, label: '4', colorScheme: colorScheme),
           // Paylaş Butonu
@@ -318,7 +402,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
           child: Text(
-            'Yorumlar (${_comments.length})',
+            'Yorumlar (${_currentPost.comments.length})', // Modelden
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
@@ -328,9 +412,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _comments.length,
+          itemCount: _currentPost.comments.length, // Modelden
           itemBuilder: (context, index) {
-            final comment = _comments[index];
+            final comment = _currentPost.comments[index]; // Modelden
+
+            // Profil fotoğrafı kontrolü
+            final commenterProfilePic = comment.user.profileimageurl;
+            final bool hasCommenterProfilePic = commenterProfilePic != null && commenterProfilePic.isNotEmpty;
+
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Row(
@@ -338,9 +427,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: NetworkImage(comment['avatar']),
-                    // Avatar placeholder rengini temadan al
-                    backgroundColor: colorScheme.surfaceVariant, 
+                    // Yorum yapanın profil resmi
+                    backgroundImage: hasCommenterProfilePic ? NetworkImage(commenterProfilePic!) : null,
+                    child: hasCommenterProfilePic ? null : Icon(Icons.person, size: 25, color: colorScheme.onPrimary),
+                    backgroundColor: hasCommenterProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -350,26 +440,23 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         Row(
                           children: [
                             Text(
-                              comment['user'], 
+                              comment.user.fullname,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                // Metin rengini temadan al
-                                color: colorScheme.onSurface, 
+                                color: colorScheme.onSurface,
                               )
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              comment['username'], 
+                              '@${comment.user.username}',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                // İkincil metin rengini temadan al
-                                color: colorScheme.onSurfaceVariant, 
+                                color: colorScheme.onSurfaceVariant,
                               )
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              '• ${comment['time']}', 
+                              '• ${_formatTimeAgo(comment.createdat)}',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                // İkincil metin rengini temadan al
                                 color: colorScheme.onSurfaceVariant,
                               )
                             ),
@@ -377,10 +464,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          comment['comment'], 
+                          comment.commenttext,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontSize: 15,
-                            // Metin rengini temadan al
                             color: colorScheme.onSurface,
                           )
                         ),
@@ -398,9 +484,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   // Yorum Yazma Alanı
   Widget _buildCommentComposer(ThemeData theme, ColorScheme colorScheme) {
+    // Yorum yazan kullanıcının profil fotoğrafı kontrolü (Simülasyon için sabit varsayım)
+    const String currentUserAvatarUrl = 'https://i.pravatar.cc/150?img=12';
+    final bool hasCurrentUserProfilePic = currentUserAvatarUrl.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      // Arka planı ve çerçeveyi temadan al
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
@@ -410,23 +499,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: const NetworkImage('https://i.pravatar.cc/150?img=12'),
-              // Avatar placeholder rengini temadan al
-              backgroundColor: colorScheme.surfaceVariant, 
+              backgroundImage: hasCurrentUserProfilePic ? NetworkImage(currentUserAvatarUrl) : null,
+              child: hasCurrentUserProfilePic ? null : Icon(Icons.person, size: 23, color: colorScheme.onPrimary),
+              backgroundColor: hasCurrentUserProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: TextField(
                 controller: _commentController,
-                // InputDecoration stili AppTheme'dan geliyor.
                 decoration: InputDecoration(
                   hintText: 'Yorumunuzu yazın...',
                   hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                  // fillColor: Colors.white, kaldırıldı. AppTheme'dan geliyor.
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30.0),
-                    // Çerçeve rengi AppTheme'dan geliyor, burada sadece focus rengini dinamikleştirelim
-                    borderSide: BorderSide.none, 
+                    borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
@@ -434,9 +520,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
             IconButton(
-              // İkon rengini temadan al
               icon: Icon(Icons.send, color: colorScheme.primary),
-              onPressed: _addComment, 
+              onPressed: _addComment,
             ),
           ],
         ),
@@ -449,7 +534,7 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final ColorScheme colorScheme;
-  
+
   const _ActionButton({Key? key, required this.icon, required this.label, required this.colorScheme}) : super(key: key);
 
   @override
@@ -459,17 +544,15 @@ class _ActionButton extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            icon, 
-            size: 20, 
-            // İkon rengini temadan al
+            icon,
+            size: 20,
             color: colorScheme.onSurfaceVariant
           ),
           if (label.isNotEmpty) ...[
             const SizedBox(width: 6),
             Text(
-              label, 
+              label,
               style: TextStyle(
-                // Metin rengini temadan al
                 color: colorScheme.onSurfaceVariant
               )
             ),
