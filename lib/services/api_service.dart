@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io'; 
+import 'package:binu_frontend/models/course_model.dart';
 import 'package:binu_frontend/models/post_model.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -87,6 +88,34 @@ class ApiService {
     } catch (e) {
       rethrow;
     }
+  }
+
+
+
+Future<List<Course>> getCourses() async {
+     try {
+
+
+
+        final response = await http.get(
+        Uri.parse('$_baseUrl/courses/'), 
+        headers: {
+        'Content-Type': 'application/json',
+        }, 
+        ).timeout(const Duration(seconds: 90));
+
+       if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+        return jsonData.map((json) => Course.fromJson(json)).toList();
+       } else if (response.statusCode == 401) {
+          
+          throw Exception('Backend izni hatası: Kurs listesi herkese açık değil.');
+      } else {
+        throw Exception('Kurslar yüklenemedi: ${response.statusCode}');
+      }
+     } catch (e) {
+       throw Exception('Kurslar yüklenirken hata oluştu: $e');
+     }
   }
 
   Future<void> logout() async {
