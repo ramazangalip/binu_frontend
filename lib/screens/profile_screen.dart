@@ -1,6 +1,10 @@
 import 'package:binu_frontend/screens/edit_profile_screen.dart';
 import 'package:binu_frontend/screens/new_post_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir.
+import 'package:binu_frontend/services/api_service.dart';
+import 'package:intl/intl.dart'; 
+import 'package:http/http.dart' as http; // Sadece fetchMyPosts'u göstermek için eklendi (Gereksiz ise kaldırılabilir)
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -11,65 +15,67 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _selectedTab = 'Hepsi';
-  final List<Map<String, dynamic>> _userPosts = [
-    {
-      'title': 'Akademik Proje Yönetimi',
-      'date': '26 Ekim 2023',
-      'status': 'Yayınlandı',
-      'category': 'Proje Raporları',
-      'image':
-          'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=500&q=80',
-    },
-    {
-      'title': 'Veri Yapıları ve Algoritmalar',
-      'date': '05 Kasım 2023',
-      'status': 'Taslak',
-      'category': 'Ders Notları',
-      'image':
-          'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&q=80',
-    },
-    {
-      'title': 'Grup Çalışması İpuçları',
-      'date': '12 Aralık 2023',
-      'status': 'Yayınlandı',
-      'category': 'Hepsi',
-      'image':
-          'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=500&q=80',
-    },
-    {
-      'title': 'Gelecek Etkinlikler Takvimi',
-      'date': '15 Ocak 2024',
-      'status': 'Planlandı',
-      'category': 'Hepsi',
-      'image':
-          'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&q=80',
-    },
-    {
-      'title': 'Etkili Not Alma Teknikleri',
-      'date': '01 Şubat 2024',
-      'status': 'Yayınlandı',
-      'category': 'Ders Notları',
-      'image':
-          'https://images.unsplash.com/photo-1456324504439-367cee3b3c32?w=500&q=80',
-    },
-    {
-      'title': 'Bitirme Projesi Belirlemesi',
-      'date': '10 Mart 2024',
-      'status': 'Taslak',
-      'category': 'Proje Raporları',
-      'image':
-          'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=500&q=80',
-    },
-  ];
+  final List<String> _tabs = ['Hepsi']; // API'den gelen kategorilerle dinamik olarak doldurulacak
 
-  final List<String> _tabs = ['Hepsi', 'Proje Raporları', 'Ders Notları'];
+  // -----------------------------------------------------
+  // API ve State Değişkenleri
+  // -----------------------------------------------------
+  final ApiService _apiService = ApiService();
+  User? _userProfile; 
+  List<Post> _allPosts = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  List<Map<String, dynamic>> get _filteredPosts {
-    if (_selectedTab == 'Hepsi') {
-      return _userPosts;
+  @override
+  void initState() {
+    super.initState();
+    Intl.defaultLocale = 'tr_TR'; 
+    _fetchProfileData();
+  }
+  
+  // -----------------------------------------------------
+  // Veri Çekme Metodu
+  // -----------------------------------------------------
+  Future<void> _fetchProfileData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // 1. Kullanıcı profilini çek
+      final user = await _apiService.fetchUserProfile();
+      
+      // 2. Kullanıcıya ait gönderileri çek
+      final posts = await _apiService.fetchUserPosts(); 
+
+      // Sekmeleri dinamik olarak güncelle
+      final postCategories = posts.map((p) => p.category).toSet().toList();
+      _tabs.clear();
+      _tabs.add('Hepsi');
+      _tabs.addAll(postCategories);
+      _selectedTab = _tabs.first;
+
+      setState(() {
+        _userProfile = user;
+        _allPosts = posts;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Profil verileri yüklenemedi. Hata: ${e.toString().split(':').last.trim()}';
+        _isLoading = false;
+      });
     }
-    return _userPosts
-        .where((post) => post['category'] == _selectedTab)
+  }
+
+  // Filtrelenmiş gönderiler artık Post modelini kullanır
+  List<Post> get _filteredPosts {
+    if (_selectedTab == 'Hepsi') {
+      return _allPosts;
+    }
+    return _allPosts
+        .where((post) => post.category == _selectedTab)
         .toList();
   }
 
@@ -79,76 +85,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ColorScheme colorScheme = theme.colorScheme;
     
     return Scaffold(
-      // Arka planı temadan al
       backgroundColor: theme.scaffoldBackgroundColor, 
 
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildProfileHeader(theme, colorScheme),
-            _buildActionButtons(colorScheme),
-            const SizedBox(height: 24),
-            _buildFilterTabs(theme, colorScheme),
-            _buildPostsGrid(theme, colorScheme),
-          ],
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_errorMessage!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchProfileData,
+                          child: const Text('Tekrar Dene'),
+                        )
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchProfileData,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        // _userProfile'ı doğrudan gönderiyoruz
+                        _buildProfileHeader(theme, colorScheme, _userProfile), 
+                        _buildActionButtons(colorScheme),
+                        const SizedBox(height: 24),
+                        _buildFilterTabs(theme, colorScheme),
+                        _buildPostsGrid(theme, colorScheme),
+                        const SizedBox(height: 80), // FAB için boşluk
+                      ],
+                    ),
+                  ),
+                ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const NewPostScreen()),
           );
+          // Yeni gönderi eklenince verileri yenile
+          _fetchProfileData(); 
         },
-        // FAB rengini temadan al
         backgroundColor: colorScheme.secondary, 
-        // İkon rengini temadan al
         child: Icon(Icons.add, color: colorScheme.onSecondary), 
       ),
     );
   }
   
   // -----------------------------------------------------
-  // Profil Başlık Bölümü
+  // Profil Başlık Bölümü (User modelini kullanır)
   // -----------------------------------------------------
-  Widget _buildProfileHeader(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildProfileHeader(ThemeData theme, ColorScheme colorScheme, User? user) {
+    final String fullName = user?.fullname ?? 'Kullanıcı Adı';
+    final String username = user?.username ?? '@kullanici';
+    
+    // CRITICAL FIX 1: Biography bilgisini API'den çek
+    // Eğer null gelirse (??), varsayılan bir metin kullan.
+    final String bio = user?.biography ?? 'Henüz biyografi eklenmedi.'; 
+    
+    // CRITICAL FIX 2: Profil fotoğrafı URL'sini API'den çek
+    // Eğer null gelirse, 'https://via.placeholder.com/150' gibi bir varsayılan URL kullan.
+    final String avatarUrl = user?.profileimageurl ?? 'https://i.pravatar.cc/150?img=12'; 
+    
+    final String followers = NumberFormat.compact().format(user?.followersCount ?? 0);
+    final String following = NumberFormat.compact().format(user?.followingCount ?? 0);
+    final String postsCount = NumberFormat.compact().format(_allPosts.length);
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
           CircleAvatar(
             radius: 50,
-            backgroundImage: const NetworkImage('https://i.pravatar.cc/150?img=12'),
-            // Avatar placeholder rengini temadan al
+            // CRITICAL FIX: Dinamik URL kullanıldı
+            backgroundImage: NetworkImage(avatarUrl), 
             backgroundColor: colorScheme.surfaceVariant, 
           ),
           const SizedBox(height: 12),
           Text(
-            'Mert Yılmaz',
+            fullName,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontSize: 22, 
               fontWeight: FontWeight.bold,
-              // Metin rengini temadan al
               color: colorScheme.onSurface, 
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '@mertyilmaz',
+            '@$username',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontSize: 15, 
-              // İkincil metin rengini temadan al
               color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Bilgisayar Bilimleri öğrencisi, teknoloji ve girişimcilik tutkunu. Yeni fikirler keşfetmeyi severim.',
+            // CRITICAL FIX: Dinamik Biyografi kullanıldı
+            bio, 
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontSize: 14, 
               height: 1.5,
-              // Metin rengini temadan al
               color: colorScheme.onSurface,
             ),
           ),
@@ -156,9 +198,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _StatItem(value: '1.2K', label: 'Takipçi', theme: theme, colorScheme: colorScheme),
-              _StatItem(value: '350', label: 'Takip Edilen', theme: theme, colorScheme: colorScheme),
-              _StatItem(value: '58', label: 'Gönderiler', theme: theme, colorScheme: colorScheme),
+              _StatItem(value: followers, label: 'Takipçi', theme: theme, colorScheme: colorScheme),
+              _StatItem(value: following, label: 'Takip Edilen', theme: theme, colorScheme: colorScheme),
+              _StatItem(value: postsCount, label: 'Gönderiler', theme: theme, colorScheme: colorScheme),
             ],
           ),
         ],
@@ -178,19 +220,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Padding(
             padding: const EdgeInsets.only(right: 4.0, left: 16.0),
             child: OutlinedButton(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const EditProfileScreen(),
                   ),
                 );
+                // Profil düzenlendikten sonra veriyi yenile
+                // Bu çağrı, EditProfileScreen'den dönüldüğünde en güncel veriyi çekecektir.
+                _fetchProfileData(); 
               },
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                // Çerçeve rengini temadan al
                 side: BorderSide(color: colorScheme.outlineVariant), 
-                // Metin rengini temadan al
                 foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -208,9 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text('Paylaş'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                // Çerçeve rengini temadan al
                 side: BorderSide(color: colorScheme.outlineVariant), 
-                // Metin rengini temadan al
                 foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -231,7 +272,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         border: Border(
-          // Alt çizgi rengini temadan al
           bottom: BorderSide(color: colorScheme.outlineVariant, width: 1.0), 
         ),
       ),
@@ -244,8 +284,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final tab = _tabs[index];
           final isSelected = tab == _selectedTab;
           
-          final selectedBg = colorScheme.primaryContainer.withOpacity(0.4); // Seçili arka plan
-          final selectedFg = colorScheme.primary; // Seçili metin ve çizgi rengi
+          final selectedBg = colorScheme.primaryContainer.withOpacity(0.4); 
+          final selectedFg = colorScheme.primary; 
 
           return GestureDetector(
             onTap: () => setState(() => _selectedTab = tab),
@@ -268,7 +308,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   tab,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    // Metin rengini dinamik olarak ayarla
                     color: isSelected ? selectedFg : colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -285,6 +324,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // Gönderi Izgarası Bölümü
   // -----------------------------------------------------
   Widget _buildPostsGrid(ThemeData theme, ColorScheme colorScheme) {
+    if (_filteredPosts.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(64.0),
+        child: Center(
+          child: Text('Seçili kategoride henüz bir gönderi yok.'),
+        ),
+      );
+    }
+    
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -294,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.75, // Kartların en-boy oranı
+        childAspectRatio: 0.75,
       ),
       itemBuilder: (context, index) {
         return _buildPostCard(_filteredPosts[index], theme, colorScheme);
@@ -302,14 +350,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Tek bir gönderi kartı
-  Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
+  // Tek bir gönderi kartı (Artık Post modelini kullanır)
+  Widget _buildPostCard(Post post, ThemeData theme, ColorScheme colorScheme) {
+    // Post modelinden createdat alanını kullanıyoruz
+    final formattedDate = DateFormat('dd MMMM yyyy').format(post.createdat); 
+
     return Container(
       decoration: BoxDecoration(
-        // Arka plan rengini temadan al (Card veya Surface)
         color: colorScheme.surface, 
         borderRadius: BorderRadius.circular(12),
-        // Çerçeve rengini temadan al
         border: Border.all(color: colorScheme.outlineVariant), 
       ),
       child: Column(
@@ -318,7 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: Image.network(
-              post['image'],
+              post.imageurl ?? 'https://via.placeholder.com/200', // imageurl kullanıldı
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -335,10 +384,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  post['title'],
+                  post.title, // Post modelinden çekildi
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    // Metin rengini temadan al
                     color: colorScheme.onSurface, 
                   ),
                   maxLines: 2,
@@ -346,15 +394,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  post['date'],
+                  formattedDate, 
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 12, 
-                    // İkincil metin rengini temadan al
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildStatusIndicator(post['status'], colorScheme),
+                _buildStatusIndicator(post.status, colorScheme), // Post modelinden çekildi
               ],
             ),
           ),
@@ -368,20 +415,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     IconData icon;
     Color color;
     
-    // Durum renkleri, görsel ayrım için sabit tutulabilir veya temadan çekilebilir.
-    // Burada sabit renkleri temadaki ana renklerin eşdeğeriyle değiştiriyoruz.
     switch (status) {
       case 'Yayınlandı':
         icon = Icons.check_circle;
-        color = Colors.green.shade600; // Başarı rengi
+        color = Colors.green.shade600; 
         break;
       case 'Taslak':
         icon = Icons.edit_note;
-        color = Colors.orange.shade600; // Dikkat/Uyarı rengi
+        color = Colors.orange.shade600; 
         break;
       case 'Planlandı':
         icon = Icons.timer_outlined;
-        color = colorScheme.primary; // Ana renk
+        color = colorScheme.primary; 
         break;
       default:
         icon = Icons.circle;
@@ -405,7 +450,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// İstatistikleri gösteren yardımcı widget
+// İstatistikleri gösteren yardımcı widget (Değişmedi)
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;
@@ -428,14 +473,12 @@ class _StatItem extends StatelessWidget {
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold, 
             fontSize: 18,
-            // Metin rengini temadan al
             color: colorScheme.onSurface, 
           ),
         ),
         Text(
           label, 
           style: theme.textTheme.bodyMedium?.copyWith(
-            // Etiket rengini temadan al
             color: colorScheme.onSurfaceVariant
           )
         ),

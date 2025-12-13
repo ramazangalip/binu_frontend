@@ -1,200 +1,276 @@
-// models/post_model.dart
-class Post {
- final int postid;
- final User user; // Django'da Post modelinde User Foreign Key'i zorunlu olduğu için non-nullable kalabilir.
- final String textcontent;
- final String? imageurl;
- final int sharecount;
- final DateTime createdat;
- final List<Comment> comments;
- final int likesCount;
- final bool isLikedByUser;
+// lib/models/post_model.dart
 
-Post({
- required this.postid,
- required this.user,
-required this.textcontent,
- this.imageurl,
- required this.sharecount,
- required this.createdat,
- required this.comments,
- required this.likesCount,
- required this.isLikedByUser,
-});
-
-factory Post.fromJson(Map<String, dynamic> json) {
-final userJson = json['user'];
-return Post(
-postid: json['postid'],
-user: User.fromJson(userJson as Map<String, dynamic>), 
-textcontent: json['textcontent'],
-imageurl: json['imageurl'],
- sharecount: json['sharecount'],
- createdat: DateTime.parse(json['createdat']),
- comments: (json['comments'] as List)
- .map((comment) => Comment.fromJson(comment))
-.toList(),
- likesCount: json['likes_count'],
- isLikedByUser: json['is_liked_by_user'],
-);
- }
-
- Post copyWith({
- int? postid,
- User? user,
- String? textcontent,
- String? imageurl,
- int? sharecount,
- DateTime? createdat,
- List<Comment>? comments,
- int? likesCount,
- bool? isLikedByUser,
- }) {
- return Post(
- postid: postid ?? this.postid,
- user: user ?? this.user,
-textcontent: textcontent ?? this.textcontent,
-imageurl: imageurl ?? this.imageurl,
- sharecount: sharecount ?? this.sharecount,
- createdat: createdat ?? this.createdat,
-comments: comments ?? this.comments,
- likesCount: likesCount ?? this.likesCount,
- isLikedByUser: isLikedByUser ?? this.isLikedByUser,
- );
+// Yardımcı fonksiyon: JSON'dan gelen değeri güvenli bir şekilde int? olarak döndürür.
+// Null, string (sayısal), veya int olmayan her değeri null yapar.
+int? _safeInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    return null; 
 }
 
- Map<String, dynamic> toJson() {
-return {
-'postid': postid,
-'user': user.toJson(),
-'textcontent': textcontent,
-'imageurl': imageurl,
-'sharecount': sharecount,
-'createdat': createdat.toIso8601String(),
-'comments': comments.map((comment) => comment.toJson()).toList(),
-'likes_count': likesCount,
-'is_liked_by_user': isLikedByUser,
-};
-}
-}
 // -----------------------------------------------------------
-
-class User {
-final int userid;
-final String email;
-final String username;
-final String fullname;
-final String? profileimageurl;
-final Role? role; // 👈 Burası nullable yapıldı
-final int score;
-final DateTime createdat;
-final int followersCount;
-final int followingCount;
-
-User({
- required this.userid,
- required this.email,
- required this.username,
- required this.fullname,
- this.profileimageurl,
- this.role, // 👈 Constructor güncellendi
-required this.score,
- required this.createdat,
- required this.followersCount,
- required this.followingCount,
-});
-
-factory User.fromJson(Map<String, dynamic> json) {
-    final roleJson = json['role'];
-return User(
-userid: json['userid'],
- email: json['email'],
-username: json['username'],
- fullname: json['fullname'],
- profileimageurl: json['profileimageurl'],
-      
-      // 🌟 DÜZELTME: Role null ise, null döndür; aksi halde dönüştür.
- role: roleJson != null ? Role.fromJson(roleJson as Map<String, dynamic>) : null, 
-      
- score: json['score'],
- createdat: DateTime.parse(json['createdat']),
- followersCount: json['followers_count'],
- followingCount: json['following_count'],
- );
-}
-
-Map<String, dynamic> toJson() {
- return {
-  'userid': userid,
-  'email': email,
-  'username': username,
-  'fullname': fullname,
-  'profileimageurl': profileimageurl,
-  'role': role?.toJson(), // 👈 Null kontrolü eklendi
-  'score': score,
-  'createdat': createdat.toIso8601String(),
-  'followers_count': followersCount,
-  'following_count': followingCount,
-};
-}
-}
+// Role Model
 // -----------------------------------------------------------
-
 class Role {
- final int roleid;
-final String rolename;
+  final int roleid;
+  final String rolename;
 
-Role({
-required this.roleid,
- required this.rolename,
- });
+  Role({
+    required this.roleid,
+    required this.rolename,
+  });
 
- factory Role.fromJson(Map<String, dynamic> json) {
- return Role(
- roleid: json['roleid'],
-rolename: json['rolename'],
-);
+  factory Role.fromJson(Map<String, dynamic> json) {
+    return Role(
+      // ID'yi güvenli okuyup null gelirse 0 atar
+      roleid: _safeInt(json['roleid']) ?? 0, 
+      rolename: json['rolename'] ?? 'Bilinmeyen Rol',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'roleid': roleid,
+      'rolename': rolename,
+    };
+  }
 }
 
- Map<String, dynamic> toJson() {
- return {
-'roleid': roleid,
- 'rolename': rolename,
-};
-}
-}
 // -----------------------------------------------------------
+// User Model (API'deki kullanıcı profilini temsil eder)
+// -----------------------------------------------------------
+class User {
+  // Sayısal alanlar null gelebilir: int?
+  final int? userid; 
+  final String email;    // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
+  final String username; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
+  final String fullname; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
+  
+  final String? profileimageurl;
+  final String? biography; 
+  final Role? role;
+  
+  final int? score;
+  
+  final DateTime createdat; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
+  
+  final int? followersCount;
+  final int? followingCount;
 
-class Comment {
-final int commentid;
-final String commenttext;
-final User user; // Django'da zorunlu olduğu için non-nullable kalabilir
-final DateTime createdat;
+  User({
+    this.userid, 
+    // Zorunlu (required) olmayan String'leri opsiyonel hale getirdik
+    String? email,     
+    String? username,  
+    String? fullname,  
+    this.profileimageurl,
+    this.biography,
+    this.role,
+    this.score, 
+    DateTime? createdat,
+    this.followersCount, 
+    this.followingCount,
+  }) : 
+       // CRITICAL FIX: Kurucuda null gelen zorunlu String'lere varsayılan değer atandı
+       email = email ?? 'bilinmeyen@bilinmeyen.com',
+       username = username ?? 'bilinmeyen_kullanici',
+       fullname = fullname ?? 'Bilinmeyen Kullanıcı',
+       createdat = createdat ?? DateTime.now(); // Tarih null gelirse anlık zamanı atar
 
-Comment({
-required this.commentid,
-required this.commenttext,
- required this.user,
- required this.createdat,
-});
+  factory User.fromJson(Map<String, dynamic> json) {
+    final roleJson = json['role'];
+    
+    // JSON'dan sayısal değerleri güvenli bir şekilde int? olarak okuyoruz
+    final int? safeUserId = _safeInt(json['id'] ?? json['userid']);
+    final int? safeScore = _safeInt(json['score']);
+    final int? safeFollowersCount = _safeInt(json['followers_count']);
+    final int? safeFollowingCount = _safeInt(json['following_count']);
 
-factory Comment.fromJson(Map<String, dynamic> json) {
-final userJson = json['user'];
-return Comment(
-commentid: json['commentid'],
-commenttext: json['commenttext'],
+    // Tarih değerini güvenli bir şekilde alıyoruz
+    DateTime? parsedDate;
+    final dateString = json['created_at'] ?? json['createdat'];
+    if (dateString is String) {
+      try {
+        parsedDate = DateTime.parse(dateString);
+      } catch (_) {
+        // Parse hatası olursa null kalır
+      }
+    }
 
- user: User.fromJson(userJson as Map<String, dynamic>), 
-createdat: DateTime.parse(json['createdat']),
- );
- }
+    return User(
+      userid: safeUserId, 
+      
+      // String alanlara güvenli erişim (Kurucuda null kontrolü zaten yapılacak)
+      email: json['email'] as String?,
+      username: json['username'] as String?,
+      fullname: json['fullname'] as String?,
+      
+      profileimageurl: json['profile_picture_url'] ?? json['profileimageurl'],
+      biography: json['biography'],
+      role: roleJson != null ? Role.fromJson(roleJson as Map<String, dynamic>) : null,
+      
+      score: safeScore,
+      
+      createdat: parsedDate,
+      
+      followersCount: safeFollowersCount,
+      followingCount: safeFollowingCount,
+    );
+  }
 
- Map<String, dynamic> toJson() {
- return {
-'commentid': commentid,
-'commenttext': commenttext,
- 'user': user.toJson(),
- 'createdat': createdat.toIso8601String(),
- };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': userid,
+      'email': email,
+      'username': username,
+      'fullname': fullname,
+      'profile_picture_url': profileimageurl,
+      'biography': biography,
+      'role': role?.toJson(),
+      'score': score,
+      'created_at': createdat.toIso8601String(),
+      'followers_count': followersCount,
+      'following_count': followingCount,
+    };
+  }
 }
+
+// -----------------------------------------------------------
+// Comment Model
+// -----------------------------------------------------------
+class Comment {
+  final int commentid;
+  final String commenttext;
+  final User user;
+  final DateTime createdat;
+
+  Comment({
+    required this.commentid,
+    required this.commenttext,
+    required this.user,
+    required this.createdat,
+  });
+
+  factory Comment.fromJson(Map<String, dynamic> json) {
+    final userJson = json['user'];
+    return Comment(
+      commentid: _safeInt(json['commentid']) ?? 0, 
+      commenttext: json['commenttext'] ?? '',
+      user: User.fromJson(userJson as Map<String, dynamic>),
+      createdat: DateTime.parse(json['createdat']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'commentid': commentid,
+      'commenttext': commenttext,
+      'user': user.toJson(),
+      'createdat': createdat.toIso8601String(),
+    };
+  }
+}
+
+// -----------------------------------------------------------
+// Post Model
+// -----------------------------------------------------------
+class Post {
+  final int postid;
+  final User user;
+  final String textcontent;
+  final String? imageurl;
+  final int sharecount;
+  final DateTime createdat;
+  final List<Comment> comments;
+  final int likesCount;
+  final bool isLikedByUser;
+
+  final String title;    
+  final String status;   
+  final String category; 
+
+  Post({
+    required this.postid,
+    required this.user,
+    required this.textcontent,
+    this.imageurl,
+    required this.sharecount,
+    required this.createdat,
+    required this.comments,
+    required this.likesCount,
+    required this.isLikedByUser,
+    required this.title,
+    required this.status,
+    required this.category,
+  });
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    final userJson = json['user'];
+
+    return Post(
+      postid: _safeInt(json['postid']) ?? 0, 
+      user: User.fromJson(userJson as Map<String, dynamic>),
+      textcontent: json['textcontent'] ?? '',
+      imageurl: json['imageurl'],
+      sharecount: _safeInt(json['sharecount']) ?? 0, 
+      createdat: DateTime.parse(json['createdat']),
+      comments: (json['comments'] as List? ?? [])
+          .map((comment) => Comment.fromJson(comment as Map<String, dynamic>))
+          .toList(),
+      likesCount: _safeInt(json['likes_count']) ?? 0, 
+      isLikedByUser: json['is_liked_by_user'] ?? false,
+      
+      title: json['title'] ?? json['textcontent'] ?? 'Başlıksız Gönderi',
+      status: json['status'] ?? 'Yayınlandı',
+      category: json['category'] ?? 'Hepsi',
+    );
+  }
+
+  Post copyWith({
+    int? postid,
+    User? user,
+    String? textcontent,
+    String? imageurl,
+    int? sharecount,
+    DateTime? createdat,
+    List<Comment>? comments,
+    int? likesCount,
+    bool? isLikedByUser,
+    String? title,
+    String? status,
+    String? category,
+  }) {
+    return Post(
+      postid: postid ?? this.postid,
+      user: user ?? this.user,
+      textcontent: textcontent ?? this.textcontent,
+      imageurl: imageurl ?? this.imageurl,
+      sharecount: sharecount ?? this.sharecount,
+      createdat: createdat ?? this.createdat,
+      comments: comments ?? this.comments,
+      likesCount: likesCount ?? this.likesCount,
+      isLikedByUser: isLikedByUser ?? this.isLikedByUser,
+      title: title ?? this.title,
+      status: status ?? this.status,
+      category: category ?? this.category,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'postid': postid,
+      'user': user.toJson(),
+      'textcontent': textcontent,
+      'imageurl': imageurl,
+      'sharecount': sharecount,
+      'createdat': createdat.toIso8601String(),
+      'comments': comments.map((comment) => comment.toJson()).toList(),
+      'likes_count': likesCount,
+      'is_liked_by_user': isLikedByUser,
+      'title': title, 
+      'status': status,
+      'category': category,
+    };
+  }
 }

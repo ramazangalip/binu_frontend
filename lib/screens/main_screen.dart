@@ -38,7 +38,7 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
- 
+  
   void _handleProfileMenuSelection(String value) {
     switch (value) {
       case 'profile':
@@ -49,8 +49,11 @@ class _MainScreenState extends State<MainScreen> {
         }
         break;
       case 'logout':
-       
+        
+        // AuthProvider'dan çıkış yap
         Provider.of<AuthProvider>(context, listen: false).signOut();
+        
+        // Giriş ekranına yönlendir ve tüm geçmişi temizle
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
@@ -62,7 +65,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     
-    final profileImageUrl = Provider.of<AuthProvider>(context).currentUser?.profileImageUrl ?? 'https://i.pravatar.cc/150?img=12';
+    final profileImageUrl = Provider.of<AuthProvider>(context).currentUser?.profileimageurl 
+                            ?? 'https://i.pravatar.cc/150?img=12';
 
     return Scaffold(
       appBar: CustomAppBar(
