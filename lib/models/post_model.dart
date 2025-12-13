@@ -23,7 +23,6 @@ class Role {
 
   factory Role.fromJson(Map<String, dynamic> json) {
     return Role(
-      // ID'yi güvenli okuyup null gelirse 0 atar
       roleid: _safeInt(json['roleid']) ?? 0, 
       rolename: json['rolename'] ?? 'Bilinmeyen Rol',
     );
@@ -38,29 +37,25 @@ class Role {
 }
 
 // -----------------------------------------------------------
-// User Model (API'deki kullanıcı profilini temsil eder)
+// User Model (Biyografi ve tüm sayaçları içerir)
 // -----------------------------------------------------------
 class User {
-  // Sayısal alanlar null gelebilir: int?
   final int? userid; 
-  final String email;    // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
-  final String username; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
-  final String fullname; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
+  final String email;
+  final String username;
+  final String fullname;
   
   final String? profileimageurl;
-  final String? biography; 
+  final String? biography; // Hata çözümü için eklendi
   final Role? role;
   
-  final int? score;
-  
-  final DateTime createdat; // CRITICAL FIX: required kaldırıldı, kurucuda varsayılan atama yapılacak
-  
+  final int? score; 
+  final DateTime createdat; 
   final int? followersCount;
   final int? followingCount;
 
   User({
     this.userid, 
-    // Zorunlu (required) olmayan String'leri opsiyonel hale getirdik
     String? email,     
     String? username,  
     String? fullname,  
@@ -72,42 +67,40 @@ class User {
     this.followersCount, 
     this.followingCount,
   }) : 
-       // CRITICAL FIX: Kurucuda null gelen zorunlu String'lere varsayılan değer atandı
+       // Zorunlu String alanlara güvenli varsayılan değer atama
        email = email ?? 'bilinmeyen@bilinmeyen.com',
        username = username ?? 'bilinmeyen_kullanici',
        fullname = fullname ?? 'Bilinmeyen Kullanıcı',
-       createdat = createdat ?? DateTime.now(); // Tarih null gelirse anlık zamanı atar
+       createdat = createdat ?? DateTime.now();
 
   factory User.fromJson(Map<String, dynamic> json) {
     final roleJson = json['role'];
     
-    // JSON'dan sayısal değerleri güvenli bir şekilde int? olarak okuyoruz
+    // Güvenli Sayısal Okuma
     final int? safeUserId = _safeInt(json['id'] ?? json['userid']);
     final int? safeScore = _safeInt(json['score']);
     final int? safeFollowersCount = _safeInt(json['followers_count']);
     final int? safeFollowingCount = _safeInt(json['following_count']);
 
-    // Tarih değerini güvenli bir şekilde alıyoruz
+    // Güvenli Tarih Okuma
     DateTime? parsedDate;
     final dateString = json['created_at'] ?? json['createdat'];
     if (dateString is String) {
       try {
         parsedDate = DateTime.parse(dateString);
-      } catch (_) {
-        // Parse hatası olursa null kalır
-      }
+      } catch (_) {}
     }
 
     return User(
       userid: safeUserId, 
       
-      // String alanlara güvenli erişim (Kurucuda null kontrolü zaten yapılacak)
+      // Güvenli String okuma (null gelirse kurucu varsayılan atamayı yapacak)
       email: json['email'] as String?,
       username: json['username'] as String?,
       fullname: json['fullname'] as String?,
       
       profileimageurl: json['profile_picture_url'] ?? json['profileimageurl'],
-      biography: json['biography'],
+      biography: json['biography'] as String?, // biography alanı okundu
       role: roleJson != null ? Role.fromJson(roleJson as Map<String, dynamic>) : null,
       
       score: safeScore,
@@ -121,15 +114,15 @@ class User {
 
   Map<String, dynamic> toJson() {
     return {
-      'id': userid,
+      'userid': userid,
       'email': email,
       'username': username,
       'fullname': fullname,
-      'profile_picture_url': profileimageurl,
+      'profileimageurl': profileimageurl,
       'biography': biography,
       'role': role?.toJson(),
       'score': score,
-      'created_at': createdat.toIso8601String(),
+      'createdat': createdat.toIso8601String(),
       'followers_count': followersCount,
       'following_count': followingCount,
     };
@@ -140,9 +133,9 @@ class User {
 // Comment Model
 // -----------------------------------------------------------
 class Comment {
-  final int commentid;
+  final int commentid; 
   final String commenttext;
-  final User user;
+  final User user; 
   final DateTime createdat;
 
   Comment({
@@ -155,9 +148,9 @@ class Comment {
   factory Comment.fromJson(Map<String, dynamic> json) {
     final userJson = json['user'];
     return Comment(
-      commentid: _safeInt(json['commentid']) ?? 0, 
+      commentid: _safeInt(json['commentid']) ?? 0,
       commenttext: json['commenttext'] ?? '',
-      user: User.fromJson(userJson as Map<String, dynamic>),
+      user: User.fromJson(userJson as Map<String, dynamic>), 
       createdat: DateTime.parse(json['createdat']),
     );
   }
@@ -173,22 +166,22 @@ class Comment {
 }
 
 // -----------------------------------------------------------
-// Post Model
+// Post Model (title, status, category içerir)
 // -----------------------------------------------------------
 class Post {
-  final int postid;
-  final User user;
+  final int postid; 
+  final User user; 
   final String textcontent;
   final String? imageurl;
-  final int sharecount;
+  final int sharecount; 
   final DateTime createdat;
   final List<Comment> comments;
-  final int likesCount;
+  final int likesCount; 
   final bool isLikedByUser;
 
-  final String title;    
-  final String status;   
-  final String category; 
+  final String title;    // Hata çözümü için eklendi
+  final String status;   // Hata çözümü için eklendi
+  final String category; // Hata çözümü için eklendi
 
   Post({
     required this.postid,
@@ -200,27 +193,27 @@ class Post {
     required this.comments,
     required this.likesCount,
     required this.isLikedByUser,
-    required this.title,
-    required this.status,
-    required this.category,
+    this.title = 'Başlıksız', 
+    this.status = 'Yayınlandı', 
+    this.category = 'Hepsi', 
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
     final userJson = json['user'];
-
     return Post(
-      postid: _safeInt(json['postid']) ?? 0, 
-      user: User.fromJson(userJson as Map<String, dynamic>),
+      postid: _safeInt(json['postid']) ?? 0,
+      user: User.fromJson(userJson as Map<String, dynamic>), 
       textcontent: json['textcontent'] ?? '',
-      imageurl: json['imageurl'],
-      sharecount: _safeInt(json['sharecount']) ?? 0, 
+      imageurl: json['imageurl'] as String?,
+      sharecount: _safeInt(json['sharecount']) ?? 0,
       createdat: DateTime.parse(json['createdat']),
       comments: (json['comments'] as List? ?? [])
           .map((comment) => Comment.fromJson(comment as Map<String, dynamic>))
           .toList(),
-      likesCount: _safeInt(json['likes_count']) ?? 0, 
+      likesCount: _safeInt(json['likes_count']) ?? 0,
       isLikedByUser: json['is_liked_by_user'] ?? false,
       
+      // Hata çözümü için eklendi
       title: json['title'] ?? json['textcontent'] ?? 'Başlıksız Gönderi',
       status: json['status'] ?? 'Yayınlandı',
       category: json['category'] ?? 'Hepsi',
@@ -268,7 +261,7 @@ class Post {
       'comments': comments.map((comment) => comment.toJson()).toList(),
       'likes_count': likesCount,
       'is_liked_by_user': isLikedByUser,
-      'title': title, 
+      'title': title,
       'status': status,
       'category': category,
     };

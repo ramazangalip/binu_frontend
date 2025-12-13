@@ -1,4 +1,4 @@
-import 'dart:io'; 
+import 'dart:io';
 import 'dart:convert';
 import 'package:binu_frontend/models/post_model.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +9,9 @@ import 'package:binu_frontend/screens/post_detail_screen.dart';
 import 'package:binu_frontend/screens/reports_screen.dart';
 import 'package:binu_frontend/screens/search_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:binu_frontend/providers/auth_provider.dart';
+import 'package:binu_frontend/services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -20,31 +23,69 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   
   // -----------------------------------------------------------------
-  // ⚙️ BACKEND ENTEGRASYONU İÇİN GEREKLİ ALANLAR
+  // STATE VE DINAMIK VERI ALANLARI
   // -----------------------------------------------------------------
-  List<Map<String, String>> _fetchedPopularCourses = []; 
-  bool _isLoadingCourses = true; 
+  List<Map<String, String>> _fetchedPopularCourses = [];
+  bool _isLoadingCourses = true;
 
-  // 🌟 GÖNDERİLER İÇİN YENİ ALANLAR
   List<Map<String, dynamic>> _fetchedPosts = [];
-  bool _isLoadingPosts = true; 
+  bool _isLoadingPosts = true;
   
-  static const String _baseUrl = 'http://10.0.2.2:8000/api/'; 
+  // YENI STATE DEGISKENI: Kullanicinin Siralamasini tutar
+  int? _userRank;
+  
+  static const String _baseUrl = 'http://10.0.2.2:8000/api/';
+  final ApiService _apiService = ApiService();
+  
   // -----------------------------------------------------------------
-
-  // Artık kullanılan `posts` listesi yerine dinamik olarak çekilen _fetchedPosts kullanılacak.
-  // Ancak `NewPostScreen`'den gelen yeni postları geçici olarak listeye eklemek için
-  // bu listeyi canlı tutabiliriz. Şimdilik eski yerel post listesini kaldırıyorum.
 
   @override
   void initState() {
     super.initState();
     _fetchPopularCourses();
-    _fetchPosts(); // 👈 Gönderileri çekmeyi başlat
+    _fetchPosts();
+    
+    // YENI: Siralama bilgisini cekmeyi baslat
+    _fetchUserRank();
   }
   
   // -----------------------------------------------------------------
-  // API'den Popüler Kurs Verilerini Çeken Metot (MEVCUT)
+  // YENI METOT: Kullanicinin Siralamasini Hesaplama
+  // -----------------------------------------------------------------
+  Future<void> _fetchUserRank() async {
+    final currentUser = Provider.of<AuthProvider>(context, listen: false).currentUser;
+
+    if (currentUser == null || currentUser.score == null) {
+      setState(() {
+        _userRank = null;
+      });
+      return;
+    }
+
+    try {
+      final List<User> leaderboard = await _apiService.fetchLeaderboard();
+      
+      final int rankIndex = leaderboard.indexWhere((user) => user.userid == currentUser.userid);
+      
+      if (rankIndex != -1) {
+        setState(() {
+          _userRank = rankIndex + 1;
+        });
+      } else {
+        setState(() {
+          _userRank = null;
+        });
+      }
+    } catch (e) {
+      print('Siralama cekme hatasi: $e');
+      setState(() {
+        _userRank = null;
+      });
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // API'den Populer Kurs Verilerini Ceken Metot (MEVCUT)
   // -----------------------------------------------------------------
   Future<void> _fetchPopularCourses() async {
     setState(() {
@@ -52,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final response = await http.get(Uri.parse('${_baseUrl}courses/')); 
+      final response = await http.get(Uri.parse('${_baseUrl}courses/'));
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
@@ -60,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final List<Map<String, String>> courses = jsonList.map((item) {
           
           final teacherData = item['teacher'];
-          String instructorName = "Öğretmen Yok";
+          String instructorName = "Ogretmen Yok";
           if (teacherData != null && teacherData is Map && teacherData.containsKey('fullname')) {
             instructorName = teacherData['fullname'] as String;
           }
@@ -78,55 +119,49 @@ class _HomeScreenState extends State<HomeScreen> {
         });
 
       } else {
-        print('Kurslar yüklenirken hata oluştu. Durum kodu: ${response.statusCode}');
+        print('Kurslar yuklenirken hata olustu. Durum kodu: ${response.statusCode}');
       }
     } catch (e) {
-      print('Ağ hatası: $e');
+      print('Ag hatasi: $e');
     } finally {
       setState(() {
-        _isLoadingCourses = false; 
+        _isLoadingCourses = false;
       });
     }
   }
 
   // -----------------------------------------------------------------
-  // API'den Gönderi Verilerini Çeken Metot (YENİ)
+  // API'den Gonderi Verilerini Ceken Metot (MEVCUT)
   // -----------------------------------------------------------------
   Future<void> _fetchPosts() async {
     setState(() {
       _isLoadingPosts = true;
     });
     
-    // API'den gönderileri çekmek için token gerekebilir. 
-    // Basitlik adına şimdilik token'ı atlıyoruz, ancak gerçek uygulamada Authorization header eklenmeli.
     try {
-      final response = await http.get(Uri.parse('${_baseUrl}posts/')); 
+      final response = await http.get(Uri.parse('${_baseUrl}posts/'));
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
         
-        // Gelen API verisini uygulama formatına dönüştürme
         final List<Map<String, dynamic>> posts = jsonList.map((item) {
           
-          // API'den gelen verileri Flutter'da beklenen alanlarla eşleştirme
           final userData = item['user'] as Map<String, dynamic>;
           
           return {
-            'postid': item['postid'], // Post Detail'a gitmek için
+            'postid': item['postid'],
             'username': userData['fullname'] as String,
-            'title': userData['role']?['rolename'] ?? 'Kullanıcı', // Kullanıcı rolünü başlık olarak kullan
-            // 👈 BURASI GÜNCELLENDİ: Eğer boşsa null olarak bırakın
+            'title': userData['role']?['rolename'] ?? 'Kullanici',
             'profilePic': userData['profileimageurl'],
-            'time': _formatTimeAgo(item['createdat'] as String), // Zamanı formatlamak için yardımcı metot
-            'image': item['imageurl'], // API'den gelen imageurl
+            'time': _formatTimeAgo(item['createdat'] as String),
+            'image': item['imageurl'],
             'text': item['textcontent'] as String,
             
-            // Etkileşim verileri
             'likes': item['likes_count'] as int,
-            'comments': (item['comments'] as List).length, // Yorum listesinin uzunluğu
-            'shares': item['sharecount'] as int, 
-            'filePath': null, 
-            'fileName': null, 
+            'comments': (item['comments'] as List).length,
+            'shares': item['sharecount'] as int,
+            'filePath': null,
+            'fileName': null,
           };
         }).toList();
 
@@ -134,18 +169,18 @@ class _HomeScreenState extends State<HomeScreen> {
           _fetchedPosts = posts;
         });
       } else {
-        print('Gönderiler yüklenirken hata oluştu. Durum kodu: ${response.statusCode}');
+        print('Gonderiler yuklenirken hata olustu. Durum kodu: ${response.statusCode}');
       }
     } catch (e) {
-      print('Ağ hatası: $e');
+      print('Ag hatasi: $e');
       if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gönderiler yüklenemedi. Sunucuya bağlanılamadı.')),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gonderiler yuklene')),
+        );
+      }
     } finally {
       setState(() {
-        _isLoadingPosts = false; 
+        _isLoadingPosts = false;
       });
     }
   }
@@ -160,15 +195,15 @@ class _HomeScreenState extends State<HomeScreen> {
       final difference = now.difference(dateTime);
 
       if (difference.inDays > 7) {
-        return '${difference.inDays ~/ 7} hafta önce';
+        return '${difference.inDays ~/ 7} hafta once';
       } else if (difference.inDays > 0) {
-        return '${difference.inDays} gün önce';
+        return '${difference.inDays} gun once';
       } else if (difference.inHours > 0) {
-        return '${difference.inHours} saat önce';
+        return '${difference.inHours} saat once';
       } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes} dakika önce';
+        return '${difference.inMinutes} dakika once';
       } else {
-        return 'şimdi';
+        return 'simdi';
       }
     } catch (e) {
       return 'Bilinmeyen zaman';
@@ -189,13 +224,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 🔍 Arama Kutusu
           TextField(
             decoration: InputDecoration(
               hintText: "Kurs ara...",
               prefixIcon: Icon(
                 Icons.search,
-                color: colorScheme.onSurface.withOpacity(0.6), 
+                color: colorScheme.onSurface.withOpacity(0.6),
               ),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -203,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 🧑‍🤝‍🧑 Takip Ettiklerin (DİNAMİK BÖLÜM - _fetchedPosts kullanılıyor)
           _buildSectionTitle("Takip Ettiklerin", theme, colorScheme),
           const SizedBox(height: 8),
           
@@ -215,22 +248,21 @@ class _HomeScreenState extends State<HomeScreen> {
           else if (_fetchedPosts.isEmpty)
             Center(child: Padding(
               padding: const EdgeInsets.all(32.0),
-              child: Text("Gönderi akışı boş.", style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              child: Text("Gonderi akisi bos.", style: TextStyle(color: colorScheme.onSurfaceVariant)),
             ))
-          else 
+          else
             ..._fetchedPosts.map((post) => _buildPostCard(post, theme, colorScheme)).toList(),
           
           const SizedBox(height: 20),
 
-          // 💻 Popüler Kurslar (DİNAMİK BÖLÜM - _fetchedPopularCourses kullanılıyor)
-          _buildSectionTitle("Popüler Kurslar", theme, colorScheme, isSearchable: true),
+          _buildSectionTitle("Populer Kurslar", theme, colorScheme, isSearchable: true),
           const SizedBox(height: 12),
           SizedBox(
             height: 130,
             child: _isLoadingCourses
-                ? Center(child: CircularProgressIndicator(color: colorScheme.primary)) 
-                : _fetchedPopularCourses.isEmpty 
-                    ? Center(child: Text("Popüler kurs bulunamadı.", style: TextStyle(color: colorScheme.onSurfaceVariant))) 
+                ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
+                : _fetchedPopularCourses.isEmpty
+                    ? Center(child: Text("Populer kurs bulunamadi.", style: TextStyle(color: colorScheme.onSurfaceVariant)))
                     : ListView.builder(
                         scrollDirection: Axis.horizontal,
                         itemCount: _fetchedPopularCourses.length,
@@ -249,13 +281,13 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: colorScheme.secondary,
         onPressed: () async {
-          // Yeni post eklendikten sonra post akışını yenilemek için kullanılır.
           final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const NewPostScreen()),
           );
-          if (result == true) { // Eğer başarılı bir gönderi oluşturulduysa (örneğin NewPostScreen'den döndüğünde true dönerse)
-            _fetchPosts(); // Post akışını yenile
+          if (result == true) {
+            _fetchPosts();
+            _fetchUserRank();
           }
         },
         child: Icon(Icons.add, color: colorScheme.onSecondary),
@@ -264,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   // -----------------------------------------------------------------
-  // YARDIMCI WIDGET METOTLARI (Aynı Kaldı)
+  // YARDIMCI WIDGET METOTLARI
   // -----------------------------------------------------------------
 
   Widget _buildSectionTitle(String title, ThemeData theme, ColorScheme colorScheme, {bool isSearchable = false}) {
@@ -285,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
           child: Text(
-            "Tümünü Gör",
+            "Tumunu Gor",
             style: TextStyle(color: colorScheme.primary),
           ),
         )
@@ -293,44 +325,50 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // HomeScreen > _HomeScreenState içinde
-
-// HomeScreen > _HomeScreenState içinde
-
-Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
-    // ... (dosya ve resim kontrolleri aynı kalır)
+  Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme colorScheme) {
     final hasFile = post['filePath'] != null && post['fileName'] != null;
     final hasImage = post['image'] != null && (post['image'] as String).isNotEmpty;
-    final isImageFile = hasFile && 
+    final isImageFile = hasFile &&
                         (post['fileName'].toString().toLowerCase().endsWith('.jpg') ||
                          post['fileName'].toString().toLowerCase().endsWith('.jpeg') ||
                          post['fileName'].toString().toLowerCase().endsWith('.png'));
 
-    // Profil fotoğrafı URL'si var mı kontrolü
-    // API'den gelen veride 'profilePic' alanı genellikle NetworkImage'a uygundur.
     final profilePicUrl = post['profilePic'];
     final bool hasProfilePic = profilePicUrl != null && (profilePicUrl as String).isNotEmpty;
-
 
     return GestureDetector(
       onTap: () {
         try {
-          // 🌟 ÇÖZÜM: Map'i (post) Post modeline dönüştürme
-          final Post postModel = Post.fromJson(post); 
+          final Post postModel = Post.fromJson({
+            'postid': post['postid'],
+            'textcontent': post['text'],
+            'imageurl': post['image'],
+            'sharecount': post['shares'],
+            'likes_count': post['likes'],
+            'is_liked_by_user': false,
+            'createdat': DateTime.now().toIso8601String(),
+            'comments': [],
+            'title': post['title'],
+            'status': 'Yayinlandi',
+            'category': 'Hepsi',
+            'user': {
+              'fullname': post['username'],
+              'profileimageurl': post['profilePic'],
+              'userid': 0, 'email': '', 'username': '', 'score': 0, 'createdat': DateTime.now().toIso8601String(), 'followers_count': 0, 'following_count': 0
+            }
+          });
           
           Navigator.push(
             context,
             MaterialPageRoute(
-              // Artık PostDetailScreen, beklediği Post modelini alıyor.
-              builder: (context) => PostDetailScreen(post: postModel), 
+              builder: (context) => PostDetailScreen(post: postModel),
             ),
           );
         } catch (e) {
-            // Dönüşüm hatası durumunda (örneğin eksik alanlar varsa)
-            print('Post modeline dönüştürme hatası: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Gönderi detayları yüklenirken bir hata oluştu.')),
-            );
+          print('Post modeline donusturme hatasi: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gonderi detaylari yuklenirken bir hata olustu.')),
+          );
         }
       },
       child: Card(
@@ -342,34 +380,24 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
               padding: const EdgeInsets.all(12.0),
               child: Row(
                 children: [
-                  // 🌟 GÜNCELLENEN KISIM: Profil Fotoğrafı Kontrolü
                   CircleAvatar(
                     radius: 20,
-                    // Eğer fotoğraf URL'si varsa NetworkImage kullan
-                    backgroundImage: hasProfilePic 
-                        ? NetworkImage(profilePicUrl) 
-                        : null, // Yoksa backgroundImage null kalır, child gösterilir.
-                    
-                    // Eğer fotoğraf yoksa ikon göster
+                    backgroundImage: hasProfilePic
+                        ? NetworkImage(profilePicUrl)
+                        : null,
                     child: hasProfilePic
-                        ? null // Fotoğraf varsa child null olmalı
+                        ? null
                         : Icon(
-                            Icons.person, // Varsayılan kişi ikonu
-                            size: 25, 
-                            color: colorScheme.onPrimary, // İkon rengini temadan çekiyoruz
+                            Icons.person,
+                            size: 25,
+                            color: colorScheme.onPrimary,
                           ),
-                          
-                    // Profil avatarının arka plan rengini temadan çekiyoruz
-                    // Eğer fotoğraf yoksa, ikonun arka planı primary renk olabilir.
-                    backgroundColor: hasProfilePic 
-                        ? colorScheme.surfaceVariant 
-                        : colorScheme.primary, 
+                    backgroundColor: hasProfilePic
+                        ? colorScheme.surfaceVariant
+                        : colorScheme.primary,
                   ),
-                  // 🌟 GÜNCELLEME SONU
-
                   const SizedBox(width: 10),
                   Column(
-                    // ... (Kullanıcı Adı ve Başlık (Rol) kısmı aynı kalır) ...
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -377,7 +405,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: colorScheme.onSurface, 
+                          color: colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -385,7 +413,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer, 
+                          color: colorScheme.primaryContainer,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -403,16 +431,14 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
               ),
             ),
             
-            // ... (Resim/Dosya Görüntüleme Mantığı aynı kalır) ...
-            if (hasImage) ...[ 
+            if (hasImage) ...[
               _buildNetworkImage(post['image'], colorScheme),
             ] else if (hasFile) ...[
-              if (isImageFile) 
+              if (isImageFile)
                 _buildLocalImage(post['filePath'], colorScheme)
               else
                 _buildFileDownloadCard(post['fileName'], post['filePath'], colorScheme, theme),
             ],
-            // ... (Metin ve Etkileşim İkonları aynı kalır) ...
 
             Padding(
               padding: const EdgeInsets.all(12.0),
@@ -420,7 +446,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                 post['text'],
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontSize: 16,
-                  color: colorScheme.onSurface, 
+                  color: colorScheme.onSurface,
                   height: 1.5,
                 ),
               ),
@@ -451,7 +477,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                   ),
                   Text(
                     post['time'],
-                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant), 
+                    style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -462,107 +488,101 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
     );
   }
   
-  // URL'den yüklenen resim
   Widget _buildNetworkImage(String url, ColorScheme colorScheme) {
-      return Image.network(
-        url,
-        width: double.infinity,
+    return Image.network(
+      url,
+      width: double.infinity,
+      height: 220,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          height: 220,
+          color: colorScheme.surfaceVariant,
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: colorScheme.primary,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) => Container(
         height: 220,
-        fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            height: 220,
-            color: colorScheme.surfaceVariant,
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-                color: colorScheme.primary, 
-              ),
+        color: colorScheme.surfaceVariant,
+        child: Center(
+          child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocalImage(String filePath, ColorScheme colorScheme) {
+    return Image.file(
+      File(filePath),
+      width: double.infinity,
+      height: 220,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Container(
+        height: 220,
+        color: colorScheme.surfaceVariant,
+        child: Center(
+          child: Text(
+            'Gorsel yuklenemedi (Yerel dosya)',
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileDownloadCard(String fileName, String filePath, ColorScheme colorScheme, ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: InkWell(
+        onTap: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Dosya indirme simulasyonu baslatildi: $fileName'),
+              backgroundColor: colorScheme.secondary,
+              duration: const Duration(seconds: 1),
             ),
           );
         },
-        errorBuilder: (context, error, stackTrace) => Container(
-          height: 220,
-          color: colorScheme.surfaceVariant,
-          child: Center(
-            child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)), 
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
           ),
-        ),
-      );
-  }
-
-  // Yerel dosyadan yüklenen resim
-  Widget _buildLocalImage(String filePath, ColorScheme colorScheme) {
-      return Image.file(
-        File(filePath),
-        width: double.infinity,
-        height: 220,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          height: 220,
-          color: colorScheme.surfaceVariant,
-          child: Center(
-            child: Text(
-              'Görsel yüklenemedi (Yerel dosya)',
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
-            ),
-          ),
-        ),
-      );
-  }
-
-  // Dosya indirme kartı (Resim dışındaki dosyalar için)
-  Widget _buildFileDownloadCard(String fileName, String filePath, ColorScheme colorScheme, ThemeData theme) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-        child: InkWell(
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Dosya indirme simülasyonu başlatıldı: $fileName'),
-                backgroundColor: colorScheme.secondary,
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.insert_drive_file, color: colorScheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    fileName,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+          child: Row(
+            children: [
+              Icon(Icons.insert_drive_file, color: colorScheme.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  fileName,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                Icon(Icons.download, color: colorScheme.primary),
-              ],
-            ),
+              ),
+              Icon(Icons.download, color: colorScheme.primary),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 
-
-  // Dinamik ikon oluşturucu
   Widget _buildActionIcon(IconData icon, ColorScheme colorScheme) {
     return Icon(icon, size: 20, color: colorScheme.onSurface.withOpacity(0.6));
   }
 
-  // Popüler Kurs Kartı
   Widget _buildSingleCourseCard(
       BuildContext context, Map<String, String> courseData, ThemeData theme, ColorScheme colorScheme) {
     return GestureDetector(
@@ -570,16 +590,16 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
         final courseId = int.tryParse(courseData['id'] ?? '0');
         
         if (courseId != null && courseId != 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CourseDetailScreen(courseId: courseId), 
-              ),
-            );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CourseDetailScreen(courseId: courseId),
+            ),
+          );
         } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Kurs ID bilgisi eksik.')),
-            );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Kurs ID bilgisi eksik.')),
+          );
         }
       },
       child: Container(
@@ -587,11 +607,11 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: colorScheme.surface, 
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: colorScheme.shadow.withOpacity(theme.brightness == Brightness.light ? 0.1 : 0.4), 
+              color: colorScheme.shadow.withOpacity(theme.brightness == Brightness.light ? 0.1 : 0.4),
               spreadRadius: 1,
               blurRadius: 5,
             ),
@@ -604,7 +624,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
             Text(
               courseData['code']!,
               style: TextStyle(
-                color: colorScheme.primary, 
+                color: colorScheme.primary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),
@@ -612,26 +632,24 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Kurs Adı: Max 2 satır, sığmazsa "..."
                 Text(
-                  courseData['title']!, 
-                  maxLines: 2, 
-                  overflow: TextOverflow.ellipsis, 
+                  courseData['title']!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: colorScheme.onSurface, 
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
-                // Eğitmen Adı: Max 1 satır, sığmazsa "..."
                 Text(
-                  courseData['instructor']!, 
+                  courseData['instructor']!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 13,
-                    color: colorScheme.onSurfaceVariant, 
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -643,6 +661,22 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
   }
 
   Widget _buildScoreCard(ThemeData theme, ColorScheme colorScheme) {
+    final authProvider = Provider.of<AuthProvider>(context);
+    final int? score = authProvider.currentUser?.score;
+    
+    final int? rank = _userRank;
+    
+    final String scoreText = score != null ? '$score puan' : '0 puan';
+    
+    String rankDisplay;
+    if (rank != null) {
+      rankDisplay = '$rank. Sira ($scoreText)';
+    } else if (score != null) {
+      rankDisplay = 'Siralama hesaplaniyor ($scoreText)';
+    } else {
+      rankDisplay = 'Veriler yukleniyor...';
+    }
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -654,7 +688,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
               children: [
                 Icon(
                   Icons.emoji_events_outlined,
-                  color: colorScheme.primary, 
+                  color: colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -662,40 +696,40 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    color: colorScheme.onSurface, 
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             Text(
-              'Sıralamanız',
+              'Siralamaniz',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                color: colorScheme.onSurfaceVariant, 
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              '12. Sıra (540 puan)',
+              rankDisplay,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: colorScheme.primary, 
+                color: colorScheme.primary,
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const LeaderboardScreen()));
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LeaderboardScreen()));
               },
               child: Text(
-                'Detayları Gör',
+                'Detaylari Gor',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.primary, 
+                  color: colorScheme.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -726,7 +760,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontSize: 17,
-                    color: colorScheme.onSurface, 
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -736,7 +770,7 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
               'Teslim Edilen Projeler',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontSize: 14,
-                color: colorScheme.onSurfaceVariant, 
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 4),
@@ -745,21 +779,21 @@ Widget _buildPostCard(Map<String, dynamic> post, ThemeData theme, ColorScheme co
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface, 
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () {
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const ReportsScreen()));
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportsScreen()));
               },
               child: Text(
-                'Detayları Gör',
+                'Detaylari Gor',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.primary, 
+                  color: colorScheme.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),

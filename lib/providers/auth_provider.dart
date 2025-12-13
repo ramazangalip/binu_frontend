@@ -1,33 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
-// import '../models/user_model.dart'; // <-- KALDIRILDI
-import '../models/post_model.dart'; // <-- User sınıfı buradan alınır
+// import '../models/user_model.dart'; // Bu import satırını User modeline çevirdik
+import '../models/post_model.dart'; // Post modelinin içinde User, Comment, Role modelleri tanımlıydı
+
+// Eğer '../models/user_model.dart' dosyanızda User sınıfınız varsa, import'u buna göre ayarlayın.
+// Genel kod tutarlılığı için User (PostModel içinden) kullanıldı.
+
+// NOT: Eğer projenizde User sınıfı ayrı bir dosyada (user_model.dart) ise, 
+// o dosyayı import etmelisiniz. Varsayımsal olarak, User modelinin PostModel'de 
+// tanımlı olduğu ve doğru import'un 'package:binu_frontend/models/post_model.dart' olduğu varsayılmıştır.
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   
-  // DÜZELTME: UserModel? yerine User? kullanıldı
-  User? _currentUser; 
+  // UserModel yerine User tipini kullanıyoruz
+  User? _currentUser;
   bool _isAuthenticated = false;
   
-  // DÜZELTME: Getter tipi User? olarak değiştirildi
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
 
   Future<void> checkAuthStatus() async {
     final token = await _storage.read(key: 'access_token');
-    
     if (token != null) {
       _isAuthenticated = true;
-      // Atama başarılı: fetchUserProfile() -> User? döndürür
+      // fetchUserProfile artık User döndürüyor olmalı
       _currentUser = await _apiService.fetchUserProfile();
     } else {
       _isAuthenticated = false;
       _currentUser = null;
     }
-    
     notifyListeners();
   }
 
@@ -36,17 +40,14 @@ class AuthProvider with ChangeNotifier {
       final success = await _apiService.registerUser(email, username, fullname, password, roleId);
       return success;
     } catch (e) {
-      // Hata yönetimi burada yapılabilir veya fırlatılabilir.
       rethrow;
     }
   }
 
   Future<bool> signIn(String email, String password) async {
     final success = await _apiService.login(email, password);
-    
     if (success) {
-      // Başarılı girişten sonra kullanıcı profilini çek ve durumu güncelle
-      await checkAuthStatus(); 
+      await checkAuthStatus();
       return true;
     }
     return false;

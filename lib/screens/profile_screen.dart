@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir.
 import 'package:binu_frontend/services/api_service.dart';
 import 'package:intl/intl.dart'; 
-import 'package:http/http.dart' as http; // Sadece fetchMyPosts'u göstermek için eklendi (Gereksiz ise kaldırılabilir)
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -18,7 +17,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final List<String> _tabs = ['Hepsi']; // API'den gelen kategorilerle dinamik olarak doldurulacak
 
   // -----------------------------------------------------
-  // API ve State Değişkenleri
+  // API ve State Değişkenleri (Dinamik Veri)
   // -----------------------------------------------------
   final ApiService _apiService = ApiService();
   User? _userProfile; 
@@ -43,10 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      // 1. Kullanıcı profilini çek
       final user = await _apiService.fetchUserProfile();
-      
-      // 2. Kullanıcıya ait gönderileri çek
       final posts = await _apiService.fetchUserPosts(); 
 
       // Sekmeleri dinamik olarak güncelle
@@ -111,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        // _userProfile'ı doğrudan gönderiyoruz
+                        // DİNAMİK: _userProfile'ı gönderiyoruz
                         _buildProfileHeader(theme, colorScheme, _userProfile), 
                         _buildActionButtons(colorScheme),
                         const SizedBox(height: 24),
@@ -138,18 +134,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
   
   // -----------------------------------------------------
-  // Profil Başlık Bölümü (User modelini kullanır)
+  // Profil Başlık Bölümü (DİNAMİK)
   // -----------------------------------------------------
   Widget _buildProfileHeader(ThemeData theme, ColorScheme colorScheme, User? user) {
     final String fullName = user?.fullname ?? 'Kullanıcı Adı';
     final String username = user?.username ?? '@kullanici';
     
-    // CRITICAL FIX 1: Biography bilgisini API'den çek
-    // Eğer null gelirse (??), varsayılan bir metin kullan.
+    // DİNAMİK: Biography bilgisini API'den çek
     final String bio = user?.biography ?? 'Henüz biyografi eklenmedi.'; 
     
-    // CRITICAL FIX 2: Profil fotoğrafı URL'sini API'den çek
-    // Eğer null gelirse, 'https://via.placeholder.com/150' gibi bir varsayılan URL kullan.
+    // DİNAMİK: Profil fotoğrafı URL'sini API'den çek
     final String avatarUrl = user?.profileimageurl ?? 'https://i.pravatar.cc/150?img=12'; 
     
     final String followers = NumberFormat.compact().format(user?.followersCount ?? 0);
@@ -162,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 50,
-            // CRITICAL FIX: Dinamik URL kullanıldı
+            // DİNAMİK: NetworkImage kullanıldı
             backgroundImage: NetworkImage(avatarUrl), 
             backgroundColor: colorScheme.surfaceVariant, 
           ),
@@ -185,7 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            // CRITICAL FIX: Dinamik Biyografi kullanıldı
+            // DİNAMİK: Biyografi kullanıldı
             bio, 
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -228,7 +222,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
                 // Profil düzenlendikten sonra veriyi yenile
-                // Bu çağrı, EditProfileScreen'den dönüldüğünde en güncel veriyi çekecektir.
                 _fetchProfileData(); 
               },
               style: OutlinedButton.styleFrom(
@@ -342,19 +335,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.75,
+        childAspectRatio: 0.75, // Kartların en-boy oranı
       ),
       itemBuilder: (context, index) {
+        // DİNAMİK: Post modelini gönderiyoruz
         return _buildPostCard(_filteredPosts[index], theme, colorScheme);
       },
     );
   }
 
-  // Tek bir gönderi kartı (Artık Post modelini kullanır)
+  // Tek bir gönderi kartı (Post modelini kullanır)
   Widget _buildPostCard(Post post, ThemeData theme, ColorScheme colorScheme) {
-    // Post modelinden createdat alanını kullanıyoruz
-    final formattedDate = DateFormat('dd MMMM yyyy').format(post.createdat); 
-
+    
+    // API'dan çekilen Post modelinden imageurl alanını çek
+    final String? imageUrl = post.imageurl;
+    final formattedDate = DateFormat('dd MMMM yyyy').format(post.createdat);
+    
+    // Resim var mı kontrol et
+    final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface, 
@@ -364,44 +363,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.network(
-              post.imageurl ?? 'https://via.placeholder.com/200', // imageurl kullanıldı
-              height: 120,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
+          // Sadece resim varsa göster
+          if (hasImage)
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.network(
+                imageUrl,
                 height: 120,
-                color: colorScheme.surfaceVariant,
-                child: Center(child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5))),
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 120,
+                  color: colorScheme.surfaceVariant,
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image, 
+                      color: colorScheme.onSurface.withOpacity(0.5)
+                    )
+                  ),
+                ),
               ),
             ),
-          ),
+          
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  post.title, // Post modelinden çekildi
+                  post.title,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: colorScheme.onSurface, 
                   ),
-                  maxLines: 2,
+                  maxLines: hasImage ? 2 : 4,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  formattedDate, 
+                  formattedDate,
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontSize: 12, 
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildStatusIndicator(post.status, colorScheme), // Post modelinden çekildi
+                _buildStatusIndicator(post.status, colorScheme),
               ],
             ),
           ),
@@ -450,7 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// İstatistikleri gösteren yardımcı widget (Değişmedi)
+// İstatistikleri gösteren yardımcı widget
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;

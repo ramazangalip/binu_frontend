@@ -1,20 +1,19 @@
 import 'dart:convert';
-import 'dart:io'; 
+import 'dart:io';
 import 'package:binu_frontend/models/course_model.dart';
-import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir.
+import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// import '../models/user_model.dart'; // HATA KAYNAĞI: Tek tip kullanıyoruz
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiService {
-
+  
   static String get _baseUrl {
     if (kIsWeb) return 'http://127.0.0.1:8000/api';
     if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
     return 'http://127.0.0.1:8000/api'; // iOS
   }
-  
-  static String get baseUrl => _baseUrl;
 
   final _storage = const FlutterSecureStorage();
 
@@ -31,7 +30,6 @@ class ApiService {
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
-
 
 
   Future<bool> registerUser(String email, String username, String fullname, String password, int roleId) async {
@@ -102,10 +100,9 @@ class ApiService {
 
         if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
-        // Dönüşüm kısmı buraya eklenecek, şimdilik varsayılan döndürüyoruz
-        // return jsonData.map((json) => Course.fromJson(json)).toList(); 
-        throw UnimplementedError('Course model dönüşümü eksik.'); 
+        return jsonData.map((json) => Course.fromJson(json)).toList();
         } else if (response.statusCode == 401) {
+          
           throw Exception('Backend izni hatasi: Kurs listesi herkese acik degil.');
         } else {
           throw Exception('Kurslar yuklenemedi: ${response.statusCode}');
@@ -115,16 +112,17 @@ class ApiService {
       }
   }
   
-  // LeaderboardView metodu User modelini kullanır
+  // Leaderboard metodu (User modeli kullanılır)
   Future<List<User>> fetchLeaderboard() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/leaderboard/'), // Django LeaderboardView URL'i
+        Uri.parse('$_baseUrl/leaderboard/'), 
         headers: {'Content-Type': 'application/json'},
       ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+        // Hata çözüldü: User modeli kullanıldı
         return jsonData.map((json) => User.fromJson(json)).toList();
       } else {
         throw Exception('Liderlik tablosu yuklenemedi: ${response.statusCode}');
@@ -140,8 +138,8 @@ class ApiService {
     await _storage.delete(key: 'refresh_token');
   }
 
-  // UserModel yerine User kullanıldı
-  Future<User?> fetchUserProfile() async { 
+  // Hata çözüldü: UserModel yerine User kullanıldı
+  Future<User?> fetchUserProfile() async {
     final url = Uri.parse('$_baseUrl/users/me/');
     try {
       final headers = await _getHeaders();
@@ -149,12 +147,12 @@ class ApiService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        // Güvenli dönüşüm
+        // Hata çözüldü: UserModel.fromJson yerine User.fromJson kullanıldı
         final decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
         if (decodedBody is Map<String, dynamic>) {
-            return User.fromJson(decodedBody);
+          return User.fromJson(decodedBody);
         }
-        return null; // Yanıt 200 ama beklenen format gelmedi
+        return null;
       }
       return null;
     } catch (e) {
@@ -162,8 +160,8 @@ class ApiService {
       return null;
     }
   }
-
-  // Profil Ekranı için kullanılan metot: Oturum açmış kullanıcının postlarını çeker.
+  
+  // EKSİK METOT ÇÖZÜLDÜ: fetchUserPosts eklendi
   Future<List<Post>> fetchUserPosts() async { 
     final url = Uri.parse('$_baseUrl/posts/my-posts/'); // Varsayılan endpoint
     try {
@@ -186,7 +184,7 @@ class ApiService {
       rethrow;
     }
   }
-  
+
   // Profil Bilgilerini Guncelleme (PATCH)
   Future<User> updateProfile({
     String? fullName,
@@ -209,9 +207,9 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          if (fullName != null && fullName.isNotEmpty) 'fullname': fullName,
-          if (username != null && username.isNotEmpty) 'username': username,
-          if (biography != null) 'biography': biography, // biography boş string olabilir
+          if (fullName != null) 'fullname': fullName,
+          if (username != null) 'username': username,
+          if (biography != null) 'biography': biography,
           if (profileImageUrl != null) 'profileimageurl': profileImageUrl,
         }),
       ).timeout(const Duration(seconds: 15));
@@ -219,11 +217,10 @@ class ApiService {
       if (response.statusCode == 200) {
         final decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
         
-        // CRITICAL FIX: Dönen verinin kesinlikle Map<String, dynamic> olduğunu kontrol et
         if (decodedBody is Map<String, dynamic>) {
-          return User.fromJson(decodedBody);
+          // Hata çözüldü: UserModel.fromJson yerine User.fromJson kullanıldı
+          return User.fromJson(decodedBody); 
         } else {
-          // Eğer 200 OK geldiği halde boş/yanlış format döndüyse, exception fırlat
           throw const FormatException('Sunucudan beklenen kullanıcı verisi formatı (Map) alınamadı.');
         }
 
@@ -279,12 +276,45 @@ class ApiService {
   }
   
   
-  
-  Future<void> toggleLike(int postId) async {
-    await likePost(postId); 
-  }
+  // Resim Yükleme Metodu (Önceki başarılı adımdan geri getirildi)
+  Future<String> uploadImage(File imageFile) async {
+    final url = Uri.parse('$_baseUrl/images/upload/'); 
+    final token = await _getToken();
+    
+    if (token == null) {
+      throw Exception('Giriş yapmanız gerekiyor.');
+    }
 
-  // Tüm postları getir
+    final request = http.MultipartRequest('POST', url)
+      ..headers['Authorization'] = 'Bearer $token'
+      ..files.add(await http.MultipartFile.fromPath('image', imageFile.path)); 
+
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        
+        final dynamic newImageUrl = data['url'] ?? data['image_url'] ?? data['media_url'];
+        
+        if (newImageUrl is String && newImageUrl.isNotEmpty) {
+          return newImageUrl; 
+        } else {
+          throw Exception('Resim yüklendi (20x), ancak sunucudan geçerli bir URL dönmedi. Gelen veri: $data');
+        }
+
+      } else {
+        final errorData = json.decode(utf8.decode(response.bodyBytes));
+        throw Exception('Resim yüklenemedi (Kod: ${response.statusCode}): ${errorData.toString()}');
+      }
+    } catch (e) {
+      throw Exception('Resim yükleme sırasında hata oluştu: $e');
+    }
+  }
+  
+  Future<void> toggleLike(int postId) async {}
+
   Future<List<Post>> getPosts() async {
     try {
       final token = await _getToken();
@@ -308,7 +338,6 @@ class ApiService {
     }
   }
 
-  // Belirli bir postu getir
   Future<Post> getPost(int postId) async {
     try {
       final token = await _getToken();
@@ -424,46 +453,4 @@ class ApiService {
       throw Exception('Yorum eklenirken hata olustu: $e');
     }
   }
-
-  // Yeni Resim Yükleme Metodu
-// Yeni Resim Yükleme Metodu
-Future<String> uploadImage(File imageFile) async {
-  final url = Uri.parse('$_baseUrl/images/upload/'); // Django'daki yükleme endpoint'iniz
-  final token = await _getToken();
-  
-  if (token == null) {
-    throw Exception('Giriş yapmanız gerekiyor.');
-  }
-
-  final request = http.MultipartRequest('POST', url)
-    ..headers['Authorization'] = 'Bearer $token'
-    // 'image' anahtarı Django'daki FileField/request.FILES anahtarıyla eşleşmeli
-    ..files.add(await http.MultipartFile.fromPath('image', imageFile.path)); 
-
-  try {
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final data = json.decode(utf8.decode(response.bodyBytes));
-      
-      // CRITICAL FIX: Backend'den gelen URL'yi yakalamayı dene (En yaygın anahtarlar)
-      final dynamic newImageUrl = data['url'] ?? data['image_url'] ?? data['media_url'];
-      
-      if (newImageUrl is String && newImageUrl.isNotEmpty) {
-        return newImageUrl; // Başarılı URL döndü
-      } else {
-        // Yüklendi ama URL alınamadı veya bozuk
-        throw Exception('Resim yüklendi (20x), ancak sunucudan geçerli bir URL dönmedi. Gelen veri: $data');
-      }
-
-    } else {
-      final errorData = json.decode(utf8.decode(response.bodyBytes));
-      throw Exception('Resim yüklenemedi (Kod: ${response.statusCode}): ${errorData.toString()}');
-    }
-  } catch (e) {
-    // Ağ hataları veya JSON parse hataları
-    throw Exception('Resim yükleme sırasında hata oluştu: $e');
-  }
-}
 }

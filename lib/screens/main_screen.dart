@@ -50,10 +50,7 @@ class _MainScreenState extends State<MainScreen> {
         break;
       case 'logout':
         
-        // AuthProvider'dan çıkış yap
         Provider.of<AuthProvider>(context, listen: false).signOut();
-        
-        // Giriş ekranına yönlendir ve tüm geçmişi temizle
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
@@ -65,8 +62,8 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     
-    final profileImageUrl = Provider.of<AuthProvider>(context).currentUser?.profileimageurl 
-                            ?? 'https://i.pravatar.cc/150?img=12';
+    // CRITICAL FIX: profileImageUrl yerine profileimageurl kullanıldı.
+    final profileImageUrl = Provider.of<AuthProvider>(context).currentUser?.profileimageurl ?? 'https://i.pravatar.cc/150?img=12';
 
     return Scaffold(
       appBar: CustomAppBar(
