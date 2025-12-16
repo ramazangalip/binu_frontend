@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:binu_frontend/services/notification_service.dart';
+import 'package:provider/provider.dart';
 import 'package:binu_frontend/services/api_service.dart';
-import 'package:binu_frontend/models/post_model.dart'; // Post, User, Comment modelleriniz buradan geliyor
+import 'package:binu_frontend/models/post_model.dart';
+import 'package:binu_frontend/providers/auth_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PostDetailScreen extends StatefulWidget {
-  // Parametre Map yerine doğrudan Post modeli olarak güncellendi.
   final Post post;
 
   const PostDetailScreen({
@@ -17,21 +18,16 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
-  final NotificationService _notificationService = NotificationService();
   final ApiService _apiService = ApiService();
   final TextEditingController _commentController = TextEditingController();
 
-  // State'i yönetmek için widget.post'tan bir kopya oluşturuyoruz (mutasyon için)
   late Post _currentPost;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // Başlangıçta gelen post verilerini kullan
     _currentPost = widget.post;
-
-    // Post detay ekranı açıldığında güncel verileri çek
     _fetchPostData();
   }
 
@@ -42,82 +38,95 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   // -------------------------------------------------------------
-  // API İŞLEMLERİ (Model Kullanımı)
+  // HELPER METOTLAR
   // -------------------------------------------------------------
 
-  // Post detaylarını (yorumlar ve beğeni durumu dahil) API'den çeker
-  Future<void> _fetchPostData() async {
+  // URL'den dosya uzantısını çeker
+  String _getFileExtensionFromUrl(String url) {
     try {
-      // getPost metodu, yorumları ve beğeni durumunu içinde barındıran tam Post objesini döner
-      final updatedPost = await _apiService.getPost(_currentPost.postid);
-
-      setState(() {
-        _currentPost = updatedPost;
-        _isLoading = false;
-      });
-    } catch (e) {
-      print('Post detayları çekerken hata: $e');
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gönderi detayları yüklenemedi: ${e.toString()}')),
-        );
+      final uri = Uri.parse(url);
+      final path = uri.path;
+      final parts = path.split('.');
+      if (parts.length > 1) {
+        return parts.last.toLowerCase();
       }
-      setState(() {
-        _isLoading = false;
-      });
+      return '';
+    } catch (e) {
+      return '';
     }
   }
 
+  // Post detaylarini (yorumlar ve begeni durumu dahil) API'den ceker
+  Future<void> _fetchPostData() async {
+    try {
+      final updatedPost = await _apiService.getPost(_currentPost.postid);
 
-  // Beğenme/Beğeniyi Kaldırma API'si
+      if (mounted) {
+        setState(() {
+          _currentPost = updatedPost;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Post detaylari cekerken hata: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Gonderi detaylari yuklenemedi: ${e.toString()}')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Begenme/Begeniyi Kaldirma API'si
   void _toggleLike() async {
-    // Optimistik güncelleme
+    // Optimistik guncelleme icin onceki durumu kaydet
     final bool previousLikedState = _currentPost.isLikedByUser;
     final int previousLikeCount = _currentPost.likesCount;
 
     setState(() {
       _currentPost = _currentPost.copyWith(
         isLikedByUser: !previousLikedState,
-        likesCount: previousLikedState ? previousLikeCount - 1 : previousLikeCount + 1,
+        likesCount:
+            previousLikedState ? previousLikeCount - 1 : previousLikeCount + 1,
       );
     });
 
     if (_currentPost.isLikedByUser) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          content: Text('Gönderiyi beğendin ❤️', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-          duration: const Duration(milliseconds: 500)
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            content: Text('Gonderiyi begendin',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary)),
+            duration: const Duration(milliseconds: 500),
+          ),
+        );
+      }
     }
 
     try {
       final result = await _apiService.likePost(_currentPost.postid);
 
-      // Eğer API cevabı optimistik güncellemeyle çelişirse (örn: sunucu hatası), UI'ı API'den gelen son duruma göre güncelle.
-      // Django'dan dönen liked: true/false değerini kullanıyoruz.
-      if(result['liked'] != _currentPost.isLikedByUser) {
-        await _fetchPostData(); // Hata oluşursa post'u yeniden çek
+      // Eger API cevabi optimistik guncellemeyle celisirse, UI'i yeniden cek
+      if (result['liked'] != _currentPost.isLikedByUser) {
+        await _fetchPostData();
       }
-
-      if (result['liked'] == true) {
-        _notificationService.addNotification(
-          type: 'like', user: 'Sen', avatar: '', content: 'bu gönderiyi beğendin.',
-        );
-      }
-
     } catch (e) {
-      // Hata durumunda UI'ı geri al (rollback)
-      setState(() {
-        _currentPost = _currentPost.copyWith(
-          isLikedByUser: previousLikedState,
-          likesCount: previousLikeCount,
-        );
-      });
+      // Hata durumunda UI'i geri al (rollback)
       if (mounted) {
+        setState(() {
+          _currentPost = _currentPost.copyWith(
+            isLikedByUser: previousLikedState,
+            likesCount: previousLikeCount,
+          );
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Beğeni işlemi başarısız: ${e.toString()}')),
+          SnackBar(content: Text('Begeni islemi basarisiz: ${e.toString()}')),
         );
       }
     }
@@ -131,13 +140,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _commentController.clear();
     FocusScope.of(context).unfocus();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.secondary,
-        content: Text('Yorum gönderiliyor...', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-        duration: const Duration(seconds: 1)
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Theme.of(context).colorScheme.secondary,
+          content: Text('Yorum gonderiliyor...',
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSecondary)),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
 
     try {
       await _apiService.addComment(
@@ -145,57 +158,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         commentText: newCommentText,
       );
 
-      // Yorumları yeniden çekerek listeyi güncelle (bu, _currentPost'u güncelleyecektir)
+      // Yorumlari yeniden cekerek listeyi guncelle
       await _fetchPostData();
-
-      // BİLDİRİM EKLEME
-      _notificationService.addNotification(
-        type: 'comment',
-        user: 'Sen',
-        avatar: '',
-        content: 'bu gönderiye yorum yaptın: "$newCommentText"',
-      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Theme.of(context).colorScheme.secondary,
-            content: Text('Yorumun başarıyla gönderildi 💬', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary)),
-            duration: const Duration(milliseconds: 800)
+            content: Text('Yorumun basariyla gonderildi',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSecondary)),
+            duration: const Duration(milliseconds: 800),
           ),
         );
       }
-
     } catch (e) {
       print('Yorum eklenirken hata: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Yorum gönderilemedi: ${e.toString()}')),
+          SnackBar(content: Text('Yorum gonderilemedi: ${e.toString()}')),
         );
       }
     }
   }
 
-  // Zaman formatlama metodu (Modelden gelen DateTime nesnesini kullanır)
+  // Zaman formatlama metodu (Modelden gelen DateTime nesnesini kullanir)
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
     if (difference.inDays > 7) {
-      return '${difference.inDays ~/ 7} hafta önce';
+      return '${difference.inDays ~/ 7} hafta once';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays} gün önce';
+      return '${difference.inDays} gun once';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} saat önce';
+      return '${difference.inHours} saat once';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} dakika önce';
+      return '${difference.inMinutes} dakika once';
     } else {
-      return 'şimdi';
+      return 'simdi';
     }
   }
 
   // -------------------------------------------------------------
-  // WIDGET BUILD METODU VE ALT METOTLAR (Model Kullanımı)
+  // WIDGET BUILD METODU VE ALT METOTLAR
   // -------------------------------------------------------------
 
   @override
@@ -205,7 +211,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Gönderi Yükleniyor...')),
+        appBar: AppBar(title: const Text('Gonderi Yukleniyor...')),
         body: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
       );
     }
@@ -213,7 +219,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Gönderi'),
+        title: const Text('Gonderi'),
         elevation: 0.5,
       ),
       body: Column(
@@ -228,20 +234,29 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
           ),
-          _buildCommentComposer(theme, colorScheme),
+          // DINAMIK PROFIL FOTOGRAFI ICIN AUTH PROVIDER'I KULLAN
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, child) {
+              return _buildCommentComposer(
+                  theme, colorScheme, authProvider.currentUser?.profileimageurl);
+            },
+          ),
         ],
       ),
     );
   }
 
-  // Ana gönderi içeriği
+  // Ana gonderi icerigi
   Widget _buildPostContent(ThemeData theme, ColorScheme colorScheme) {
-    // Doğrudan modelden erişim
     final user = _currentPost.user;
     final profilePic = user.profileimageurl;
     final imageUrl = _currentPost.imageurl;
 
-    // Profil fotoğrafı kontrolü
+    final bool hasMedia = imageUrl != null && imageUrl.isNotEmpty;
+    final String extension =
+        hasMedia ? _getFileExtensionFromUrl(imageUrl!) : '';
+    final bool isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(extension);
+
     final bool hasProfilePic = profilePic != null && profilePic.isNotEmpty;
 
     return Padding(
@@ -254,8 +269,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               CircleAvatar(
                 radius: 24,
                 backgroundImage: hasProfilePic ? NetworkImage(profilePic!) : null,
-                child: hasProfilePic ? null : Icon(Icons.person, size: 30, color: colorScheme.onPrimary),
-                backgroundColor: hasProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
+                child: hasProfilePic
+                    ? null
+                    : Icon(Icons.person,
+                        size: 30, color: colorScheme.onPrimary),
+                backgroundColor:
+                    hasProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
                 onBackgroundImageError: hasProfilePic ? (e, s) => {} : null,
               ),
               const SizedBox(width: 12),
@@ -263,7 +282,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user.fullname, // Modelden
+                    user.fullname,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -277,41 +296,114 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _currentPost.textcontent, // Modelden
+            _currentPost.textcontent,
             style: theme.textTheme.bodyLarge?.copyWith(
               fontSize: 16,
               height: 1.5,
               color: colorScheme.onSurface,
             ),
           ),
-          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+
+          // Medya/Dosya Kontrolu
+          if (hasMedia) ...[
             const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    height: 200,
-                    color: colorScheme.surfaceVariant,
-                    child: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 200,
-                  color: colorScheme.surfaceVariant,
-                  child: Icon(Icons.broken_image, color: colorScheme.onSurface.withOpacity(0.5)),
-                ),
-              ),
-            ),
+            isImage
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      imageUrl!,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          height: 200,
+                          color: colorScheme.surfaceVariant,
+                          child: Center(
+                              child:
+                                  CircularProgressIndicator(color: colorScheme.primary)),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        height: 200,
+                        color: colorScheme.surfaceVariant,
+                        child: Icon(Icons.broken_image,
+                            color: colorScheme.onSurface.withOpacity(0.5)),
+                      ),
+                    ),
+                  )
+                : _buildFileDownloadCard(
+                    imageUrl!, extension, colorScheme, theme),
           ],
         ],
       ),
     );
   }
 
-  // Gönderi İstatistikleri
+  // YENI WIDGET: Dosya Indirme Kartı (URL LAUNCHER AKTIF)
+  Widget _buildFileDownloadCard(
+      String url, String extension, ColorScheme colorScheme, ThemeData theme) {
+    IconData icon;
+    if (extension == 'pdf') {
+      icon = Icons.picture_as_pdf;
+    } else if (['doc', 'docx'].contains(extension)) {
+      icon = Icons.description;
+    } else {
+      icon = Icons.insert_drive_file;
+    }
+
+    final fileName = 'Paylasilan Dosya (.${extension.toUpperCase()})';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8.0),
+      child: InkWell(
+        onTap: () async {
+          // GERCEK URL ACMA/INDIRME ISLEMI
+          final uri = Uri.parse(url);
+
+          try {
+            if (await canLaunchUrl(uri)) {
+              // Harici uygulamada (tarayıcı) acmaya zorluyoruz, bu cogu zaman indirmeyi tetikler.
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } else {
+              throw Exception('Baglanti acilamiyor.');
+            }
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Dosya acilamadi veya indirilemedi. URL: $url'),
+              ),
+            );
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceVariant.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colorScheme.primary.withOpacity(0.5)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: colorScheme.primary, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  fileName,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.open_in_new, color: colorScheme.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Gonderi Istatistikleri
   Widget _buildPostStats(ThemeData theme, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -321,16 +413,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
         child: Row(
           children: [
-            Text(_formatTimeAgo(_currentPost.createdat)), // Modelden gelen DateTime
-            const Text('  •  '),
-            const Text('1.250 Görüntüleme'),
-            const Text('  •  '),
+            Text(_formatTimeAgo(_currentPost.createdat)),
+            const Text(' - '),
+            const Text('1.250 Goruntuleme'),
+            const Text(' - '),
             Text(
-              '${_currentPost.likesCount} Beğeni', // Modelden
+              '${_currentPost.likesCount} Begeni',
               style: theme.textTheme.bodySmall!.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
-              )
+              ),
             ),
           ],
         ),
@@ -338,30 +430,25 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Etkileşim Butonları (Yorum, Paylaş vb.)
+  // Etkilesim Butonlari (Yorum, Begeni)
   Widget _buildActionButtons(ThemeData theme, ColorScheme colorScheme) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        border: Border.symmetric(horizontal: BorderSide(color: colorScheme.outlineVariant)),
+        border: Border.symmetric(
+            horizontal: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          // Yorum Sayısı Butonu
+          // Yorum Sayisi Butonu
           _ActionButton(
             icon: Icons.chat_bubble_outline,
-            label: '${_currentPost.comments.length}', // Modelden
-            colorScheme: colorScheme,
-          ),
-          // Yeniden Paylaş Butonu
-          _ActionButton(
-            icon: Icons.repeat,
-            label: _currentPost.sharecount.toString(), // Modelden
+            label: '${_currentPost.comments.length}',
             colorScheme: colorScheme,
           ),
 
-          // Tıklanabilir Beğeni Butonu
+          // Tiklanabilir Begeni Butonu
           InkWell(
             onTap: _toggleLike,
             child: Padding(
@@ -369,32 +456,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Row(
                 children: [
                   Icon(
-                    _currentPost.isLikedByUser ? Icons.favorite : Icons.favorite_border, // Modelden
-                    color: _currentPost.isLikedByUser ? colorScheme.error : colorScheme.onSurfaceVariant,
+                    _currentPost.isLikedByUser
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color: _currentPost.isLikedByUser
+                        ? colorScheme.error
+                        : colorScheme.onSurfaceVariant,
                     size: 24,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${_currentPost.likesCount}', // Modelden
+                    '${_currentPost.likesCount}',
                     style: TextStyle(
-                      color: _currentPost.isLikedByUser ? colorScheme.error : colorScheme.onSurfaceVariant
-                    )
+                        color: _currentPost.isLikedByUser
+                            ? colorScheme.error
+                            : colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
           ),
-
-          // Kaydet Butonu
-          _ActionButton(icon: Icons.bookmark_border, label: '4', colorScheme: colorScheme),
-          // Paylaş Butonu
-          _ActionButton(icon: Icons.share_outlined, label: '', colorScheme: colorScheme),
         ],
       ),
     );
   }
 
-  // Yorumlar Bölümü
+  // Yorumlar Bolumu
   Widget _buildCommentsSection(ThemeData theme, ColorScheme colorScheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,7 +489,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         Padding(
           padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
           child: Text(
-            'Yorumlar (${_currentPost.comments.length})', // Modelden
+            'Yorumlar (${_currentPost.comments.length})',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: colorScheme.onSurface,
@@ -412,63 +499,73 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _currentPost.comments.length, // Modelden
+          itemCount: _currentPost.comments.length,
           itemBuilder: (context, index) {
-            final comment = _currentPost.comments[index]; // Modelden
+            final comment = _currentPost.comments[index];
 
-            // Profil fotoğrafı kontrolü
             final commenterProfilePic = comment.user.profileimageurl;
-            final bool hasCommenterProfilePic = commenterProfilePic != null && commenterProfilePic.isNotEmpty;
+            final bool hasCommenterProfilePic =
+                commenterProfilePic != null && commenterProfilePic.isNotEmpty;
 
             return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    // Yorum yapanın profil resmi
-                    backgroundImage: hasCommenterProfilePic ? NetworkImage(commenterProfilePic!) : null,
-                    child: hasCommenterProfilePic ? null : Icon(Icons.person, size: 25, color: colorScheme.onPrimary),
-                    backgroundColor: hasCommenterProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
+                    backgroundImage: hasCommenterProfilePic
+                        ? NetworkImage(commenterProfilePic!)
+                        : null,
+                    child: hasCommenterProfilePic
+                        ? null
+                        : Icon(Icons.person,
+                            size: 25, color: colorScheme.onPrimary),
+                    backgroundColor: hasCommenterProfilePic
+                        ? colorScheme.surfaceVariant
+                        : colorScheme.primary,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        // Yorum Yapan Kullanici Bilgileri Satiri (Wrap ile tasma engellendi)
+                        Wrap(
+                          spacing: 8, // Ogeler arasindaki yatay bosluk
                           children: [
                             Text(
                               comment.user.fullname,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: colorScheme.onSurface,
-                              )
+                              ),
                             ),
-                            const SizedBox(width: 8),
                             Text(
                               '@${comment.user.username}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
-                              )
+                              ),
                             ),
-                            const SizedBox(width: 8),
                             Text(
                               '• ${_formatTimeAgo(comment.createdat)}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
-                              )
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
+                        // Yorum Metni (Tasma duzeltildi)
                         Text(
                           comment.commenttext,
+                          softWrap: true,
+                          overflow: TextOverflow.fade,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontSize: 15,
                             color: colorScheme.onSurface,
-                          )
+                          ),
                         ),
                       ],
                     ),
@@ -482,11 +579,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Yorum Yazma Alanı
-  Widget _buildCommentComposer(ThemeData theme, ColorScheme colorScheme) {
-    // Yorum yazan kullanıcının profil fotoğrafı kontrolü (Simülasyon için sabit varsayım)
-    const String currentUserAvatarUrl = 'https://i.pravatar.cc/150?img=12';
-    final bool hasCurrentUserProfilePic = currentUserAvatarUrl.isNotEmpty;
+  // Yorum Yazma Alani
+  Widget _buildCommentComposer(
+      ThemeData theme, ColorScheme colorScheme, String? currentUserProfileUrl) {
+    // AuthProvider'dan gelen URL'yi kullan, yoksa null olsun.
+    final String? profilePic = currentUserProfileUrl;
+    final bool hasCurrentUserProfilePic =
+        profilePic != null && profilePic.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -499,22 +598,29 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundImage: hasCurrentUserProfilePic ? NetworkImage(currentUserAvatarUrl) : null,
-              child: hasCurrentUserProfilePic ? null : Icon(Icons.person, size: 23, color: colorScheme.onPrimary),
-              backgroundColor: hasCurrentUserProfilePic ? colorScheme.surfaceVariant : colorScheme.primary,
+              // DINAMIK PROFIL FOTOGRAFI KULLANIMI
+              backgroundImage:
+                  hasCurrentUserProfilePic ? NetworkImage(profilePic!) : null,
+              child: hasCurrentUserProfilePic
+                  ? null
+                  : Icon(Icons.person, size: 23, color: colorScheme.onPrimary),
+              backgroundColor: hasCurrentUserProfilePic
+                  ? colorScheme.surfaceVariant
+                  : colorScheme.primary,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: TextField(
                 controller: _commentController,
                 decoration: InputDecoration(
-                  hintText: 'Yorumunuzu yazın...',
+                  hintText: 'Yorumunuzu yazin...',
                   hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30.0),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onSubmitted: (_) => _addComment(),
               ),
@@ -535,7 +641,12 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final ColorScheme colorScheme;
 
-  const _ActionButton({Key? key, required this.icon, required this.label, required this.colorScheme}) : super(key: key);
+  const _ActionButton(
+      {Key? key,
+      required this.icon,
+      required this.label,
+      required this.colorScheme})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -543,18 +654,12 @@ class _ActionButton extends StatelessWidget {
       padding: const EdgeInsets.all(8.0),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: colorScheme.onSurfaceVariant
-          ),
+          Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
           if (label.isNotEmpty) ...[
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                color: colorScheme.onSurfaceVariant
-              )
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
           ]
         ],

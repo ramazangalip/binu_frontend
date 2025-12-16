@@ -71,7 +71,7 @@ class _MainScreenState extends State<MainScreen> {
         showProfileIcon: true,
         onNotificationPressed: () {
           Navigator.push(context,
-              MaterialPageRoute(builder: (context) => const NotificationsScreen()));
+              MaterialPageRoute(builder: (context) => const NotificationScreen()));
         },
         onProfileMenuItemSelected: _handleProfileMenuSelection,
         profileImageUrl: profileImageUrl,

@@ -1,6 +1,11 @@
 import 'dart:io'; // Dosya işlemleri için
+import 'dart:convert'; // JSON decoding için
 import 'package:file_picker/file_picker.dart'; // Dosya seçmek için
 import 'package:flutter/material.dart';
+
+import 'package:provider/provider.dart'; // Provider kullanmak için gerekli
+import '../services/api_service.dart'; // ApiService import'u
+import '../providers/auth_provider.dart'; // AuthProvider import'u
 
 class NewPostScreen extends StatefulWidget {
   const NewPostScreen({super.key});
@@ -12,18 +17,62 @@ class NewPostScreen extends StatefulWidget {
 class _NewPostScreenState extends State<NewPostScreen> {
   final TextEditingController _textController = TextEditingController();
   String? _selectedCategory;
-  final List<String> _categories = ['Duyuru', 'Soru', 'Etkinlik', 'Genel'];
+  
+  // Tüm olası kategoriler (Backend'e uygun olmalı)
+  final List<String> _allCategories = ['Duyuru', 'Soru', 'Etkinlik', 'Genel'];
   
   // Seçilen dosyayı tutmak için değişkenler
   PlatformFile? _pickedFile;
   String? _filePath;
+  
+  // Kullanıcının rolüne göre filtre uygulanmış kategori listesi
+  List<String> _filteredCategories = [];
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _filterCategoriesByRole();
+  }
+  
+  // ------------------------------------------------------------------
+  // 🎯 METOT: Role ID'ye göre kategori filtreleme
+  // ------------------------------------------------------------------
+  void _filterCategoriesByRole() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final int? roleId = authProvider.currentUser?.role?.roleid;
+    
+    List<String> categories = [];
+
+    if (roleId == 1) { // Öğrenci
+      categories = _allCategories
+          .where((cat) => cat == 'Etkinlik' || cat == 'Genel')
+          .toList();
+    } else if (roleId == 2 || roleId == 3) { // Öğretmen veya İdareci
+      categories = _allCategories;
+    } else {
+      categories = ['Genel'];
+    }
+
+    if (_selectedCategory != null && !categories.contains(_selectedCategory)) {
+      _selectedCategory = null;
+    }
+
+    setState(() {
+      _filteredCategories = categories;
+    });
+  }
 
   // Dosya Seçme Fonksiyonu
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'], // İzin verilen uzantılar
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
       );
 
       if (result != null) {
@@ -47,38 +96,76 @@ class _NewPostScreenState extends State<NewPostScreen> {
     });
   }
 
-  void _sharePost() {
-    if (_textController.text.trim().isEmpty && _pickedFile == null) {
+  // ------------------------------------------------------------------
+  // 🎯 KRİTİK GÜNCELLEME: İki Aşamalı Paylaşım Mantığı
+  // ------------------------------------------------------------------
+  void _sharePost() async {
+    final apiService = ApiService();
+    
+    // 1. Validasyon
+    final textEmpty = _textController.text.trim().isEmpty;
+
+    if (textEmpty && _pickedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lütfen bir metin yazın veya dosya ekleyin!')),
+        const SnackBar(content: Text('Metin veya dosya eklemelisin!')),
+      );
+      return;
+    }
+    if (_selectedCategory == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lütfen bir kategori seçin!')),
       );
       return;
     }
 
-    // Yeni gönderi verisini bir Map olarak oluştur
-    final newPostData = {
-      'username': 'Sen',
-      'title': _selectedCategory ?? 'Genel',
-      'profilePic': 'https://i.pravatar.cc/150?img=12', // Varsayılan profil resmi
-      'time': 'şimdi',
-      // Eğer bir dosya seçildiyse onun yolunu, yoksa null gönder
-      'image': null, // Şimdilik sadece frontend simülasyonu olduğu için null bırakıyoruz
-      'filePath': _filePath, // Dosya yolunu ekledik (Backend'e gönderilirken kullanılır)
-      'fileName': _pickedFile?.name, // Dosya adı
-      'text': _textController.text.trim(),
-      'likes': 0,
-      'comments': 0,
-      'shares': 0,
-    };
+    // Yükleme sırasında kullanıcıyı bilgilendir
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Gönderi paylaşılıyor...')),
+    );
 
-    // Dosya seçildiyse kullanıcıya bilgi ver (Simülasyon)
-    if (_pickedFile != null) {
-      print("Seçilen Dosya: ${_pickedFile!.name} (Yol: $_filePath)");
+    String? finalImageUrl;
+
+    try {
+      // 2. AŞAMA: Dosya Varsa, Önce Yükle ve URL'yi Al
+      if (_filePath != null) {
+        // Dosya yükleme başarılı değilse exception fırlatır
+        finalImageUrl = await apiService.uploadImage(File(_filePath!));
+        
+        if (finalImageUrl == null) {
+          // Bu durum, uploadImage'in null döndüğü ancak hata fırlatmadığı durumdur
+          throw Exception('Dosya yüklendi ancak geçerli bir URL alınamadı.');
+        }
+      }
+
+      // 3. AŞAMA: Post Verisini ve URL'yi Gönder
+      // createPost metodu, artık File değil, URL bekler.
+      final response = await apiService.createPost(
+        text: _textController.text.trim(),
+        category: _selectedCategory!,
+        imageUrl: finalImageUrl, // Yüklenen URL'yi gönder
+      );
+      
+      // 4. Başarılı İşlem
+      // http.Response döndüğü için bodyBytes'ı decode edip gönderiyoruz
+      final decodedBody = jsonDecode(response.body);
+      Navigator.pop(context, decodedBody);
+
+    } catch (e) {
+      // Hata yönetimi
+      String errorMessage = e.toString();
+      
+      // Hata mesajının başlığını temizle
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring('Exception: '.length);
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hata: $errorMessage')),
+      );
     }
-
-    // Sayfayı kapat ve veriyi HomeScreen'e geri gönder
-    Navigator.pop(context, newPostData);
   }
+  // ------------------------------------------------------------------
+
 
   @override
   Widget build(BuildContext context) {
@@ -86,11 +173,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
     final ColorScheme colorScheme = theme.colorScheme;
     
     return Scaffold(
-      // Arka plan rengini temadan al
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Yeni Gönderi Oluştur'),
-        // AppBar stili (renk ve elevation) AppTheme'dan otomatik gelir
         elevation: 1,
       ),
       body: ListView(
@@ -101,36 +186,26 @@ class _NewPostScreenState extends State<NewPostScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _textController,
-            // InputDecoration stili AppTheme'dan geliyor.
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: 'Düşüncelerini, duyurularını veya sorularını buraya yaz...',
-              // fillColor: Colors.white, kaldırıldı. AppTheme'dan geliyor.
-              // border stili AppTheme'dan geliyor.
-              // enabledBorder stili AppTheme'dan geliyor.
             ),
             maxLines: 5,
           ),
           const SizedBox(height: 24),
 
-          // Kategori
+          // Kategori (Filtrelenmiş Liste Kullanılıyor)
           _buildSectionTitle('Kategori', theme),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedCategory,
             hint: Text('Bir kategori seçin', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-            // InputDecoration stili AppTheme'dan geliyor.
-            decoration: const InputDecoration(
-              // fillColor: Colors.white, kaldırıldı. AppTheme'dan geliyor.
-              // border stili AppTheme'dan geliyor.
-              // enabledBorder stili AppTheme'dan geliyor.
-            ),
-            items: _categories.map((String category) {
+            decoration: const InputDecoration(),
+            items: _filteredCategories.map((String category) {
               return DropdownMenuItem<String>(
                 value: category,
                 child: Text(
                   category,
-                  // Metin rengini temadan al
-                  style: TextStyle(color: colorScheme.onSurface), 
+                  style: TextStyle(color: colorScheme.onSurface),
                 ),
               );
             }).toList(),
@@ -143,26 +218,23 @@ class _NewPostScreenState extends State<NewPostScreen> {
           const SizedBox(height: 24),
 
           // Görsel veya Dosya Ekle Butonu
-          if (_pickedFile != null) 
+          if (_pickedFile != null)
             _buildSelectedFileCard(colorScheme)
           else
             OutlinedButton.icon(
               icon: Icon(
-                Icons.attach_file, 
-                // İkon rengini temadan al
+                Icons.attach_file,
                 color: colorScheme.onSurfaceVariant,
               ),
               label: Text(
                 'Görsel veya Dosya Ekle (PDF, JPG, PNG)',
                 style: TextStyle(
-                  // Metin rengini temadan al
-                  color: colorScheme.onSurface, 
+                  color: colorScheme.onSurface,
                 ),
               ),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                // Çerçeve rengini temadan al
-                side: BorderSide(color: colorScheme.outline, width: 1), 
+                side: BorderSide(color: colorScheme.outline, width: 1),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -176,13 +248,11 @@ class _NewPostScreenState extends State<NewPostScreen> {
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton(
-          // Stil bloğu kaldırıldı. Bu sayede stil AppTheme'daki elevatedButtonTheme'dan gelecek.
           onPressed: _sharePost,
           child: Text(
-            'Paylaş', 
+            'Paylaş',
             style: theme.textTheme.labelLarge?.copyWith(
               fontSize: 16,
-              // Metin rengi ElevatedButtonTheme'dan otomatik gelir.
             ),
           ),
         ),
@@ -197,11 +267,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // Kart arka planını temadan al
-        color: colorScheme.surface, 
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        // Çerçeve rengini temadan al
-        border: Border.all(color: colorScheme.outlineVariant), 
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         children: [
@@ -210,8 +278,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              // İkon/Placeholder arka planını temadan al
-              color: colorScheme.primaryContainer.withOpacity(0.5), 
+              color: colorScheme.primaryContainer.withOpacity(0.5),
               borderRadius: BorderRadius.circular(8),
               image: isImage && _filePath != null
                   ? DecorationImage(
@@ -220,11 +287,10 @@ class _NewPostScreenState extends State<NewPostScreen> {
                     )
                   : null,
             ),
-            child: isImage && _filePath != null 
-                ? null 
+            child: isImage && _filePath != null
+                ? null
                 : Icon(
-                    Icons.insert_drive_file, 
-                    // İkon rengini temadan al
+                    Icons.insert_drive_file,
                     color: colorScheme.primary,
                   ),
           ),
@@ -239,11 +305,9 @@ class _NewPostScreenState extends State<NewPostScreen> {
                   _pickedFile!.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  // Metin rengini temadan al
-                  style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface), 
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 Text(
-                  // Dosya boyutu metin rengini temadan al
                   '${(_pickedFile!.size / 1024).toStringAsFixed(1)} KB',
                   style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
                 ),
@@ -253,8 +317,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
           
           // Kaldır Butonu
           IconButton(
-            // Kapat ikon rengini temadan al (Hata/Danger rengi, Colors.red)
-            icon: Icon(Icons.close, color: colorScheme.error), 
+            icon: Icon(Icons.close, color: colorScheme.error),
             onPressed: _removeFile,
           ),
         ],
@@ -268,8 +331,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
       style: theme.textTheme.headlineSmall?.copyWith(
         fontWeight: FontWeight.bold,
         fontSize: 16,
-        // Metin rengini temadan al
-        color: theme.colorScheme.onSurface, 
+        color: theme.colorScheme.onSurface,
       ),
     );
   }

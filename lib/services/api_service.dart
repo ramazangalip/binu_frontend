@@ -1,19 +1,30 @@
 import 'dart:convert';
 import 'dart:io';
+// Dio kütüphanesi import edildi (DioException'ı yakalamak için)
+import 'package:binu_frontend/models/notification_model.dart';
+
+import 'package:dio/dio.dart';
 import 'package:binu_frontend/models/course_model.dart';
 import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-// import '../models/user_model.dart'; // HATA KAYNAĞI: Tek tip kullanıyoruz
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiService {
   
+  // Base URL tanımı
   static String get _baseUrl {
     if (kIsWeb) return 'http://127.0.0.1:8000/api';
     if (Platform.isAndroid) return 'http://10.0.2.2:8000/api';
     return 'http://127.0.0.1:8000/api'; // iOS
   }
+  
+  // Dio instance'ı, sadece multipart/form-data için kullanılıyor
+  final Dio _dioInstance = Dio(
+    BaseOptions(
+      baseUrl: _baseUrl,
+    ),
+  );
 
   final _storage = const FlutterSecureStorage();
 
@@ -90,39 +101,38 @@ class ApiService {
 
 
   Future<List<Course>> getCourses() async {
-      try {
-        final response = await http.get(
+    try {
+      final response = await http.get(
         Uri.parse('$_baseUrl/courses/'),
         headers: {
-        'Content-Type': 'application/json',
+          'Content-Type': 'application/json',
         },
-        ).timeout(const Duration(seconds: 90));
+      ).timeout(const Duration(seconds: 90));
 
-        if (response.statusCode == 200) {
+      if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
         return jsonData.map((json) => Course.fromJson(json)).toList();
-        } else if (response.statusCode == 401) {
-          
-          throw Exception('Backend izni hatasi: Kurs listesi herkese acik degil.');
-        } else {
-          throw Exception('Kurslar yuklenemedi: ${response.statusCode}');
-        }
-      } catch (e) {
-        throw Exception('Kurslar yuklenirken hata olustu: $e');
+      } else if (response.statusCode == 401) {
+        
+        throw Exception('Backend izni hatasi: Kurs listesi herkese acik degil.');
+      } else {
+        throw Exception('Kurslar yuklenemedi: ${response.statusCode}');
       }
+    } catch (e) {
+      throw Exception('Kurslar yuklenirken hata olustu: $e');
+    }
   }
   
   // Leaderboard metodu (User modeli kullanılır)
   Future<List<User>> fetchLeaderboard() async {
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/leaderboard/'), 
+        Uri.parse('$_baseUrl/leaderboard/'),
         headers: {'Content-Type': 'application/json'},
       ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
-        // Hata çözüldü: User modeli kullanıldı
         return jsonData.map((json) => User.fromJson(json)).toList();
       } else {
         throw Exception('Liderlik tablosu yuklenemedi: ${response.statusCode}');
@@ -138,7 +148,7 @@ class ApiService {
     await _storage.delete(key: 'refresh_token');
   }
 
-  // Hata çözüldü: UserModel yerine User kullanıldı
+  // fetchUserProfile metodu (User döndürür)
   Future<User?> fetchUserProfile() async {
     final url = Uri.parse('$_baseUrl/users/me/');
     try {
@@ -147,7 +157,6 @@ class ApiService {
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        // Hata çözüldü: UserModel.fromJson yerine User.fromJson kullanıldı
         final decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
         if (decodedBody is Map<String, dynamic>) {
           return User.fromJson(decodedBody);
@@ -161,9 +170,9 @@ class ApiService {
     }
   }
   
-  // EKSİK METOT ÇÖZÜLDÜ: fetchUserPosts eklendi
-  Future<List<Post>> fetchUserPosts() async { 
-    final url = Uri.parse('$_baseUrl/posts/my-posts/'); // Varsayılan endpoint
+  // fetchUserPosts metodu (List<Post> döndürür)
+  Future<List<Post>> fetchUserPosts() async {
+    final url = Uri.parse('$_baseUrl/posts/my-posts/');
     try {
       final headers = await _getHeaders();
       final response = await http.get(url, headers: headers)
@@ -192,7 +201,7 @@ class ApiService {
     String? biography,
     String? profileImageUrl,
   }) async {
-    final url = Uri.parse('$_baseUrl/users/update/'); 
+    final url = Uri.parse('$_baseUrl/users/update/');
     final token = await _getToken();
     
     if (token == null) {
@@ -218,8 +227,7 @@ class ApiService {
         final decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
         
         if (decodedBody is Map<String, dynamic>) {
-          // Hata çözüldü: UserModel.fromJson yerine User.fromJson kullanıldı
-          return User.fromJson(decodedBody); 
+          return User.fromJson(decodedBody);
         } else {
           throw const FormatException('Sunucudan beklenen kullanıcı verisi formatı (Map) alınamadı.');
         }
@@ -275,39 +283,40 @@ class ApiService {
     }
   }
   
-  
-  // Resim Yükleme Metodu (Önceki başarılı adımdan geri getirildi)
-  Future<String> uploadImage(File imageFile) async {
-    final url = Uri.parse('$_baseUrl/images/upload/'); 
-    final token = await _getToken();
+  // 🎯 GÜNCELLENMİŞ: Dosya Yükleme Metodu (http yerine Dio ile daha tutarlı)
+  Future<String?> uploadImage(File? imageFile) async {
+    if (imageFile == null) return null;
     
+    final token = await _getToken();
     if (token == null) {
       throw Exception('Giriş yapmanız gerekiyor.');
     }
-
-    final request = http.MultipartRequest('POST', url)
-      ..headers['Authorization'] = 'Bearer $token'
-      ..files.add(await http.MultipartFile.fromPath('image', imageFile.path)); 
+    
+    // Dio instance'ına Authorization header'ı ekle
+    _dioInstance.options.headers['Authorization'] = 'Bearer $token';
 
     try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      FormData formData = FormData.fromMap({
+        // ImageViewSet'in beklediği alan adı: 'image' olarak varsayılıyor
+        'image': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: imageFile.path.split('/').last,
+        ),
+      });
+      
+      // POST /api/images/upload/ endpoint'ine Dio ile gönder
+      final response = await _dioInstance.post('/images/upload/', data: formData);
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        
-        final dynamic newImageUrl = data['url'] ?? data['image_url'] ?? data['media_url'];
-        
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // ImageViewSet'ten dönen URL'yi al
+        final dynamic newImageUrl = response.data['url'] ?? response.data['image_url'];
         if (newImageUrl is String && newImageUrl.isNotEmpty) {
-          return newImageUrl; 
-        } else {
-          throw Exception('Resim yüklendi (20x), ancak sunucudan geçerli bir URL dönmedi. Gelen veri: $data');
+          return newImageUrl;
         }
-
-      } else {
-        final errorData = json.decode(utf8.decode(response.bodyBytes));
-        throw Exception('Resim yüklenemedi (Kod: ${response.statusCode}): ${errorData.toString()}');
       }
+      throw Exception('Resim yükleme başarılı ancak sunucudan geçerli URL alınamadı. Kod: ${response.statusCode}');
+    } on DioException catch (e) {
+      throw Exception('Resim yükleme hatası: ${e.response?.data.toString() ?? e.message}');
     } catch (e) {
       throw Exception('Resim yükleme sırasında hata oluştu: $e');
     }
@@ -360,39 +369,44 @@ class ApiService {
     }
   }
 
-  // Yeni post olustur
-  Future<Post> createPost({
-    required String textContent,
-    String? imageUrl,
+
+  // 🎯 GÜNCELLENMİŞ: createPost (Artık sadece URL kabul ediyor)
+  Future<http.Response> createPost({
+    required String text,
+    required String category,
+    String? imageUrl, // Dosya yerine URL alıyor
   }) async {
-    try {
-      final token = await _getToken();
-      
-      if (token == null) {
-        throw Exception('Giris yapmaniz gerekiyor');
-      }
+    final token = await _getToken();
+    
+    if (token == null) {
+      throw Exception('Giris yapmaniz gerekiyor');
+    }
 
-      final response = await http.post(
-        Uri.parse('$_baseUrl/posts/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode({
-          'textcontent': textContent,
-          if (imageUrl != null) 'imageurl': imageUrl,
-        }),
-      );
+    final httpHeaders = await _getHeaders(); // JSON Header
+    httpHeaders['Authorization'] = 'Bearer $token';
 
-      if (response.statusCode == 201) {
-        return Post.fromJson(json.decode(utf8.decode(response.bodyBytes)));
-      } else {
-        throw Exception('Post olusturulamadi: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Post olusturulurken hata olustu: $e');
+    final response = await http.post(
+      Uri.parse('$_baseUrl/posts/'), // POST /api/posts/
+      headers: httpHeaders,
+      body: jsonEncode({
+        // Django modelinin beklediği alan adları
+        'textcontent': text,
+        'category': category,
+        
+        // Dosya URL'si gönderiliyor
+        if (imageUrl != null) 'imageurl': imageUrl,
+      }),
+    );
+    
+    // Dio Response değil, http.Response döndürdük
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response;
+    } else {
+      final errorData = jsonDecode(utf8.decode(response.bodyBytes));
+      throw Exception(errorData.toString());
     }
   }
+
 
   // Post'u begen/begeniyi kaldir
   Future<Map<String, dynamic>> likePost(int postId) async {
@@ -453,4 +467,94 @@ class ApiService {
       throw Exception('Yorum eklenirken hata olustu: $e');
     }
   }
+
+  // Yeni metot: Bildirimleri Çekme
+  Future<List<AppNotification>> getNotifications() async {
+    final url = Uri.parse('$_baseUrl/notifications/');
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+        
+        // 🚀 KRİTİK HATA AYIKLAMA KISMI
+        print('--- BİLDİRİM VERİSİ BAŞLANGIÇ ---');
+        print('Gelen Bildirim sayısı: ${jsonData.length}');
+        if (jsonData.isNotEmpty) {
+          // İlk objenin yapısını görmek için
+          print('İlk Bildirim Yapısı (JSON): ${jsonData.first}');
+        }
+        print('--- BİLDİRİM VERİSİ SON ---');
+        // 🚀 KRİTİK HATA AYIKLAMA KISMI BİTİŞ
+
+        // AppNotification modelini kullanıyoruz
+        return jsonData.map((json) => AppNotification.fromJson(json)).toList();
+      } else {
+        throw Exception('Bildirimler yüklenemedi: ${response.statusCode}');
+      }
+    } on SocketException {
+      throw Exception('Sunucuya bağlanılamadı.');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Kullanıcıları aramak için yeni metot
+Future<List<User>> searchUsers(String query) async {
+  if (query.isEmpty) return [];
+  // Varsayım: Backend'inizde arama için bir endpoint (örneğin /api/users/search/?q=...) mevcut.
+  final response = await http.get(
+    Uri.parse('$_baseUrl/users/search/?q=$query'), // Lütfen backend endpoint'ini doğrulayın
+    headers: await _getHeaders(),
+  );
+
+  if (response.statusCode == 200) {
+    final List jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+    return jsonResponse.map((userJson) => User.fromJson(userJson)).toList();
+  } else {
+    throw Exception('Kullanıcı arama başarısız: ${response.statusCode}');
+  }
+}
+
+// Takip etme/takibi bırakma metodu
+Future<Map<String, dynamic>> toggleFollow(int userId) async {
+  // Varsayım: Backend'inizde takip etme/bırakma için bir endpoint (örneğin /api/users/{id}/follow/) mevcut.
+  final response = await http.post(
+    Uri.parse('$_baseUrl/users/$userId/toggle-follow/'), // Lütfen backend endpoint'ini doğrulayın
+    headers: await _getHeaders(),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    // Hata detayını yakalamaya çalışın
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Takip işlemi başarısız.');
+  }
+}
+
+Future<List<Map<String, dynamic>>> fetchConversations() async {
+  final url = Uri.parse('$_baseUrl/messages/conversations/');
+  
+  try {
+    final response = await http.get(
+      url,
+      headers: await _getHeaders(),
+    );
+
+    if (response.statusCode == 200) {
+      final List jsonResponse = json.decode(utf8.decode(response.bodyBytes));
+      
+      // JSON'u Map listesine dönüştürür (Konuşma Listesi)
+      return jsonResponse.map((data) => data as Map<String, dynamic>).toList();
+    } else if (response.statusCode == 401) {
+      throw Exception("Yetkilendirme başarısız.");
+    } else {
+      throw Exception("Konuşma listesi yüklenemedi: ${response.statusCode}");
+    }
+  } catch (e) {
+    throw Exception('Ağ hatası veya sunucu hatası: ${e.toString()}');
+  }
+}
 }

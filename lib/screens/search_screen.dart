@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:binu_frontend/services/api_service.dart';
 import 'package:binu_frontend/models/course_model.dart';
+// Post modelinizin içindeki User modelini kullanacağız (post_model.dart içinden import edildiğini varsayıyorum)
+import 'package:binu_frontend/models/post_model.dart';
 import 'package:binu_frontend/screens/course_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -20,24 +22,39 @@ class _SearchScreenState extends State<SearchScreen> {
   
   List<Course> _fetchedCourses = [];
   List<String> _categories = ['Tümü'];
+  
+  // YENİ: Arama sonuçlarında kullanıcıları tutacak liste
+  List<User> _searchedUsers = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchCourses();
+    // Başlangıçta tüm kursları ve popüler kullanıcıları yükleyebiliriz
+    _fetchData();
+  }
+  
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Future<void> _fetchCourses() async {
-    // İşlem başlarken yükleniyor durumunu ayarla
+  Future<void> _fetchData() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
+      // 1. Tüm Kursları Çek
       final courses = await _apiService.getCourses();
       
-      // 🌟 ÖNEMLİ DÜZELTME: setState'ten önce mounted kontrolü
-      if (!mounted) return; 
+      // 2. Eğer arama sorgusu varsa, kullanıcıları da ara
+      List<User> users = [];
+      if (_query.isNotEmpty && _query.trim().length >= 3) { // En az 3 karakter girilirse ara
+        users = await _apiService.searchUsers(_query);
+      }
+      
+      if (!mounted) return;
 
       final uniqueCategories = courses
           .map((c) => c.category ?? 'Diğer')
@@ -46,22 +63,19 @@ class _SearchScreenState extends State<SearchScreen> {
 
       setState(() {
         _fetchedCourses = courses;
+        _searchedUsers = users; // Kullanıcı sonuçlarını kaydet
         _categories = ['Tümü', ...uniqueCategories];
-        // _isLoading = false; // Finally bloğunda ele alıyoruz
       });
     } catch (e) {
-      print("Kurs yükleme hatası: $e");
+      print("Veri yükleme hatası: $e");
       
-      // Hata durumunda da mounted kontrolü yap
-      if (mounted) { 
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kurslar yüklenirken hata oluştu: ${e.toString()}')),
+          SnackBar(content: Text('Veriler yüklenirken hata oluştu: ${e.toString()}')),
         );
-        // _isLoading = false; // Finally bloğunda ele alıyoruz
       }
     } finally {
-      // 🌟 CRITICAL: Hata olsa da olmasa da, widget mount edilmişse yükleniyor durumunu kapat
-      if (mounted) { 
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -87,6 +101,55 @@ class _SearchScreenState extends State<SearchScreen> {
     
     return courses;
   }
+  
+  // -------------------------------------------------------------
+  // YENİ: Takip Etme/Bırakma İşlemi
+  // -------------------------------------------------------------
+  Future<void> _toggleFollow(User user) async {
+    // Optimistik güncelleme: UI'da anında değiştir, sonra API'yi bekle
+    final isFollowing = user.followersCount != null && user.followersCount! > 0; // Basit bir varsayım
+    
+    // UI'da takip durumunu değiştir
+    setState(() {
+      final userIndex = _searchedUsers.indexWhere((u) => u.userid == user.userid);
+      if (userIndex != -1) {
+        // Not: User modelinizin takip durumunu tutacak bir alana ihtiyacı vardır (isFollowing),
+        // ancak biz şimdilik basitçe _fetchData'yı çağırarak listeyi yenileyeceğiz.
+        // Daha iyi bir çözüm, User modeline 'isFollowing' alanını eklemektir.
+        
+        // Şimdilik sadece geçici olarak butonu devre dışı bırakalım
+        // VEYA: Takip durumunu anlık olarak değiştirmek için User modelinizi 'isFollowing' alanı ile genişletmelisiniz.
+      }
+    });
+    
+    // API çağrısı
+    try {
+      await _apiService.toggleFollow(user.userid!);
+      
+      // Başarılı olursa listeyi yenile
+      await _fetchData();
+      
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isFollowing ? '${user.fullname} takibi bırakıldı.' : '${user.fullname} takip ediliyor!'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+      
+    } catch (e) {
+      print("Takip etme/bırakma hatası: $e");
+      // Hata olursa (mounted ise) hata mesajı göster ve listeyi yeniden çek (eski durumuna dönsün)
+      if(mounted) {
+        await _fetchData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İşlem başarısız: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -110,13 +173,22 @@ class _SearchScreenState extends State<SearchScreen> {
             Expanded(
               child: _isLoading
                   ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-                  : _filteredCourses.isEmpty
+                  : (_searchedUsers.isEmpty && _filteredCourses.isEmpty)
                       ? Center(child: Text("Sonuç bulunamadı 😔", style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant)))
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          itemCount: _filteredCourses.length,
+                          
+                          // Önce Kullanıcı Sonuçlarını, sonra Ders Sonuçlarını listele
+                          itemCount: _searchedUsers.length + _filteredCourses.length,
                           itemBuilder: (context, index) {
-                            return _buildCourseCard(_filteredCourses[index], theme, colorScheme);
+                            if (index < _searchedUsers.length) {
+                              // Kullanıcı Kartı
+                              return _buildUserCard(_searchedUsers[index], theme, colorScheme);
+                            } else {
+                              // Ders Kartı
+                              final courseIndex = index - _searchedUsers.length;
+                              return _buildCourseCard(_filteredCourses[courseIndex], theme, colorScheme);
+                            }
                           },
                         ),
             ),
@@ -131,11 +203,24 @@ class _SearchScreenState extends State<SearchScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() => _query = value),
+        onChanged: (value) {
+          setState(() => _query = value);
+          // KRİTİK: Arama sorgusu değiştiğinde yeni verileri çek
+          _fetchData();
+        },
         decoration: InputDecoration(
-          hintText: 'Dersler, konular veya kodlar ara...',
+          hintText: 'Dersler, konular, kodlar veya kullanıcılar ara...',
           prefixIcon: Icon(Icons.search, color: colorScheme.onSurface.withOpacity(0.6)),
           contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          // Arama çubuğunu temizleme butonu
+          suffixIcon: _query.isNotEmpty ? IconButton(
+            icon: Icon(Icons.clear, color: colorScheme.onSurface.withOpacity(0.6)),
+            onPressed: () {
+              _searchController.clear();
+              setState(() => _query = '');
+              _fetchData();
+            },
+          ) : null,
         ),
       ),
     );
@@ -180,6 +265,72 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
     );
   }
+
+  // -------------------------------------------------------------
+  // YENİ: Kullanıcı Kartı (Arama Sonucu)
+  // -------------------------------------------------------------
+  Widget _buildUserCard(User user, ThemeData theme, ColorScheme colorScheme) {
+    // User modelinizin 'isFollowing' alanını içerdiğini varsayarak (daha iyi UX için gereklidir)
+    // Şimdilik sadece örneklemek için basitleştirilmiş bir varsayım kullanacağız
+    final isFollowing = user.followersCount != null && user.followersCount! > 0; // Bu bir varsayımdır, User modelinde isFollowing olmalı.
+    final hasProfilePic = user.profileimageurl != null && user.profileimageurl!.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundImage: hasProfilePic ? NetworkImage(user.profileimageurl!) : null,
+              child: hasProfilePic ? null : Icon(Icons.person, color: colorScheme.onPrimary),
+              backgroundColor: colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.fullname,
+                    style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  ),
+                  Text(
+                    '@${user.username}',
+                    style: theme.textTheme.bodySmall!.copyWith(color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Takip Et Butonu
+            SizedBox(
+              height: 36,
+              child: ElevatedButton(
+                onPressed: user.userid == null ? null : () => _toggleFollow(user),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isFollowing ? colorScheme.surfaceVariant : colorScheme.primary,
+                  foregroundColor: isFollowing ? colorScheme.onSurface : colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: isFollowing ? BorderSide(color: colorScheme.outline) : BorderSide.none,
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  isFollowing ? 'Takip Ediliyor' : 'Takip Et',
+                  style: theme.textTheme.labelLarge!.copyWith(fontSize: 13),
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildCourseCard(Course course, ThemeData theme, ColorScheme colorScheme) {
     final imageUrl = 'https://picsum.photos/seed/${course.courseCode}/600/400';

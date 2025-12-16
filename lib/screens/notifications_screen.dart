@@ -1,224 +1,123 @@
-import 'package:binu_frontend/services/notification_service.dart';
-import 'package:flutter/material.dart';
+// lib/screens/notification_screen.dart
 
-class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({Key? key}) : super(key: key);
+import 'package:binu_frontend/models/notification_model.dart';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/notification_provider.dart';
+
+
+class NotificationScreen extends StatefulWidget {
+  const NotificationScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  State<NotificationScreen> createState() => _NotificationScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  // Singleton yapısından NotificationService örneğini al
-  final NotificationService _notificationService = NotificationService();
-
+class _NotificationScreenState extends State<NotificationScreen> {
   @override
   void initState() {
     super.initState();
-    // Ekran her açıldığında listeyi güncellemek için setState tetiklenecek
+    // Sayfa açıldığında bildirimleri çek
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<NotificationProvider>(context, listen: false).fetchNotifications();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final notifications = _notificationService.notifications;
-
     return Scaffold(
-      // Arka planı temadan al
-      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Bildirimler'),
-        centerTitle: true,
-        // AppBar stili AppTheme'dan otomatik gelir
-        elevation: 0.5,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.done_all),
-            tooltip: 'Tümünü Okundu İşaretle',
-            // İkon rengi temadan gelir
-            onPressed: () {
-              setState(() {
-                // Service içindeki metodu çağır
-                _notificationService.markAllAsRead();
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  // Snackbar arka plan rengi temadan (surface) alınır
-                  backgroundColor: colorScheme.surface,
-                  content: Text(
-                    'Tüm bildirimler okundu olarak işaretlendi.',
-                    // Snackbar metin rengi temadan (onSurface) alınır
-                    style: TextStyle(color: colorScheme.onSurface),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
       ),
-      body: notifications.isEmpty 
-        ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.notifications_off_outlined, 
-                  size: 64, 
-                  // İkon rengini temadan al
-                  color: colorScheme.onSurface.withOpacity(0.3)
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Henüz bildirim yok', 
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    // Metin rengini temadan al
-                    color: colorScheme.onSurfaceVariant, 
-                    fontSize: 16,
-                  )
-                ),
-              ],
-            ),
-          )
-        : ListView.separated(
-              itemCount: notifications.length,
-              itemBuilder: (context, index) {
-                final notification = notifications[index];
-                return _buildNotificationTile(
-                  context,
-                  notification['user'],
-                  notification['content'],
-                  notification['avatar'],
-                  notification['time'],
-                  notification['type'],
-                  notification['isRead'],
-                  // NOT: id yerine index'i gönderiyoruz. Gerçek kullanımda id gönderilmelidir.
-                  notification['id'], 
-                  theme,
-                  colorScheme,
-                );
-              },
-              separatorBuilder: (context, index) => Divider(
-                height: 1,
-                thickness: 1,
-                // Ayırıcı çizgi rengini temadan al
-                color: colorScheme.outlineVariant, 
-                indent: 70,
-              ),
-            ),
+      body: Consumer<NotificationProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (provider.error != null) {
+            return Center(
+              child: Text('Hata: ${provider.error}'),
+            );
+          }
+
+          if (provider.notifications.isEmpty) {
+            return const Center(child: Text('Henüz bir bildiriminiz yok.'));
+          }
+
+          return ListView.builder(
+            itemCount: provider.notifications.length,
+            itemBuilder: (context, index) {
+              final notification = provider.notifications[index];
+              return _buildNotificationTile(context, notification);
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildNotificationTile(
-    BuildContext context,
-    String user,
-    String content,
-    String avatarUrl,
-    String time,
-    String type,
-    bool isRead,
-    int notificationId, // Bildirim ID'sini alıyoruz
-    ThemeData theme,
-    ColorScheme colorScheme,
-  ) {
-    final IconData iconData;
-    final Color iconColor; 
+  Widget _buildNotificationTile(BuildContext context, AppNotification notification) {
+    // Bildirim tipine göre ikon ve renk seçimi
+    IconData icon;
+    Color color;
 
-    switch (type) {
-      case 'like':
-        iconData = Icons.favorite;
-        iconColor = Colors.pink.shade400; 
+    switch (notification.notificationType) {
+      case 'LIKE':
+        icon = Icons.favorite;
+        color = Colors.red.shade400;
         break;
-      case 'comment':
-        iconData = Icons.chat_bubble;
-        iconColor = colorScheme.secondary; 
+      case 'COMMENT':
+        icon = Icons.comment;
+        color = Colors.blue.shade400;
         break;
-      case 'follow':
-        iconData = Icons.person_add;
-        iconColor = Colors.green; 
-        break;
-      case 'course_announcement':
-        iconData = Icons.school;
-        iconColor = Colors.purple; 
+      case 'FOLLOW':
+        icon = Icons.person_add;
+        color = Colors.green.shade400;
         break;
       default:
-        iconData = Icons.notifications;
-        iconColor = colorScheme.onSurfaceVariant; 
+        icon = Icons.notifications;
+        color = Colors.grey;
     }
 
-    // Okunmamış arka plan rengi
-    final Color tileColor = isRead 
-        ? theme.scaffoldBackgroundColor 
-        : colorScheme.primaryContainer.withOpacity(0.15); 
+    // Gönderi Detayına gitme aksiyonu
+    void handleTap() {
+      // 1. Bildirimi okundu işaretle (Provider metodu)
+      Provider.of<NotificationProvider>(context, listen: false).markAsRead(notification.notificationId);
+      
+      // 2. İlgili Post/Profile git
+      if (notification.post != null) {
+        // Örn: Post Detay sayfasına yönlendir
+        // Navigator.push(context, MaterialPageRoute(builder: (_) => PostDetailScreen(postId: notification.post!.postid)));
+        ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Post detayına yönlendiriliyor: ${notification.post!.postid}')),
+        );
+      } else if (notification.notificationType == 'FOLLOW') {
+         // Örn: Profil sayfasına yönlendir
+      }
+    }
 
-    return Container(
-      // Arka plan rengini dinamik olarak ayarla
-      color: tileColor, 
+    return Card(
+      elevation: 0,
+      color: notification.isRead ? Colors.grey.shade50 : Colors.blue.shade50.withOpacity(0.5),
+      margin: const EdgeInsets.symmetric(vertical: 1),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        leading: Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundImage: NetworkImage(avatarUrl),
-              // Avatar placeholder rengini temadan al
-              backgroundColor: colorScheme.surfaceVariant, 
-            ),
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: iconColor,
-                shape: BoxShape.circle,
-                // Çerçeve rengini temadan al
-                border: Border.all(color: colorScheme.background, width: 2), 
-              ),
-              // İkon rengi: Beyaz tutuldu çünkü arka plan renkleri zaten kontrastlı
-              child: Icon(iconData, size: 14, color: Colors.white), 
-            ),
-          ],
-        ),
-        title: RichText(
-          text: TextSpan(
-            // Varsayılan metin stili temadan gelecek
-            style: DefaultTextStyle.of(context).style.copyWith(color: colorScheme.onSurface), 
-            children: <TextSpan>[
-              TextSpan(
-                text: '$user ',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              TextSpan(
-                text: content,
-                style: const TextStyle(fontSize: 15),
-              ),
-            ],
+        leading: Icon(icon, color: color),
+        title: Text(
+          notification.message ?? 'Yeni bildirim',
+          style: TextStyle(
+            fontWeight: notification.isRead ? FontWeight.normal : FontWeight.bold,
           ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4.0),
-          child: Text(
-            time,
-            // Zaman metni rengini temadan al
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13), 
-          ),
+        subtitle: Text(
+          notification.createdAt.toLocal().toString().split('.')[0], // Zamanı temizle
+          style: TextStyle(fontSize: 12),
         ),
-        trailing: !isRead 
-            ? CircleAvatar(
-              radius: 4, 
-              // Okunmamış işareti rengini temadan (error/danger) al
-              backgroundColor: colorScheme.error, 
-            ) 
-            : null,
-        onTap: () {
-          // Bu metodunuzda `markAsRead(int id)` metodu olmadığı için,
-          // tıklamadan sonra sadece ekranı yeniden çizerek görsel geribildirim sağlıyoruz.
-          // Gerçekte burada _notificationService.markAsRead(notificationId) çağrılmalıdır.
-          setState(() {
-            // Not: Bu, sadece bir simülasyon olduğu için tam olarak
-            // okunma durumunu güncellemez. Ancak setState ile görsel geribildirim verir.
-            // Gerçek projede servisinizi güncellemeniz gerekir.
-          });
-        },
+        trailing: notification.isRead 
+            ? null 
+            : Icon(Icons.circle, size: 8, color: Colors.blue), // Okunmamış işareti
+        onTap: handleTap,
       ),
     );
   }

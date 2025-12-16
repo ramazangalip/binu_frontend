@@ -3,7 +3,8 @@ import 'package:binu_frontend/screens/new_post_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:binu_frontend/models/post_model.dart'; // User, Post, Comment içerir.
 import 'package:binu_frontend/services/api_service.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart'; // URL Açma/İndirme için EKLENDİ
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -20,7 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // API ve State Değişkenleri (Dinamik Veri)
   // -----------------------------------------------------
   final ApiService _apiService = ApiService();
-  User? _userProfile; 
+  User? _userProfile;
   List<Post> _allPosts = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -28,10 +29,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    Intl.defaultLocale = 'tr_TR'; 
+    Intl.defaultLocale = 'tr_TR';
     _fetchProfileData();
   }
-  
+
+  // 🚀 YENİ HELPER METOT: URL'den dosya uzantısını çeker
+  String _getFileExtensionFromUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final path = uri.path;
+      final parts = path.split('.');
+      if (parts.length > 1) {
+        return parts.last.toLowerCase();
+      }
+      return '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   // -----------------------------------------------------
   // Veri Çekme Metodu
   // -----------------------------------------------------
@@ -43,14 +59,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final user = await _apiService.fetchUserProfile();
-      final posts = await _apiService.fetchUserPosts(); 
+      final posts = await _apiService.fetchUserPosts();
 
       // Sekmeleri dinamik olarak güncelle
       final postCategories = posts.map((p) => p.category).toSet().toList();
       _tabs.clear();
       _tabs.add('Hepsi');
       _tabs.addAll(postCategories);
-      _selectedTab = _tabs.first;
+
+      // Seçili sekmenin hala geçerli kategorilerde olup olmadığını kontrol et
+      if (!_tabs.contains(_selectedTab)) {
+        _selectedTab = _tabs.first;
+      }
 
       setState(() {
         _userProfile = user;
@@ -79,9 +99,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
-    
+
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor, 
+      backgroundColor: theme.scaffoldBackgroundColor,
 
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -108,7 +128,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         // DİNAMİK: _userProfile'ı gönderiyoruz
-                        _buildProfileHeader(theme, colorScheme, _userProfile), 
+                        _buildProfileHeader(theme, colorScheme, _userProfile),
                         _buildActionButtons(colorScheme),
                         const SizedBox(height: 24),
                         _buildFilterTabs(theme, colorScheme),
@@ -124,28 +144,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             context,
             MaterialPageRoute(builder: (context) => const NewPostScreen()),
           );
-          // Yeni gönderi eklenince verileri yenile
-          _fetchProfileData(); 
+          // Yeni gönderi eklenince veriyi yenile
+          _fetchProfileData();
         },
-        backgroundColor: colorScheme.secondary, 
-        child: Icon(Icons.add, color: colorScheme.onSecondary), 
+        backgroundColor: colorScheme.secondary,
+        child: Icon(Icons.add, color: colorScheme.onSecondary),
       ),
     );
   }
-  
+
   // -----------------------------------------------------
-  // Profil Başlık Bölümü (DİNAMİK)
+  // Profil Başlık Bölümü (Aynı Kalır)
   // -----------------------------------------------------
   Widget _buildProfileHeader(ThemeData theme, ColorScheme colorScheme, User? user) {
     final String fullName = user?.fullname ?? 'Kullanıcı Adı';
     final String username = user?.username ?? '@kullanici';
-    
+
     // DİNAMİK: Biography bilgisini API'den çek
-    final String bio = user?.biography ?? 'Henüz biyografi eklenmedi.'; 
-    
+    final String bio = user?.biography ?? 'Henüz biyografi eklenmedi.';
+
     // DİNAMİK: Profil fotoğrafı URL'sini API'den çek
-    final String avatarUrl = user?.profileimageurl ?? 'https://i.pravatar.cc/150?img=12'; 
-    
+    // Basitleştirilmiş profil resmi kontrolü
+    final String avatarUrl = (user?.profileimageurl != null && user!.profileimageurl!.isNotEmpty)
+      ? user.profileimageurl!
+      : Icons.person.toString();
+
     final String followers = NumberFormat.compact().format(user?.followersCount ?? 0);
     final String following = NumberFormat.compact().format(user?.followingCount ?? 0);
     final String postsCount = NumberFormat.compact().format(_allPosts.length);
@@ -157,33 +180,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
           CircleAvatar(
             radius: 50,
             // DİNAMİK: NetworkImage kullanıldı
-            backgroundImage: NetworkImage(avatarUrl), 
-            backgroundColor: colorScheme.surfaceVariant, 
+            backgroundImage: NetworkImage(avatarUrl),
+            backgroundColor: colorScheme.surfaceVariant,
           ),
           const SizedBox(height: 12),
           Text(
             fullName,
             style: theme.textTheme.headlineSmall?.copyWith(
-              fontSize: 22, 
+              fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface, 
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             '@$username',
             style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 15, 
+              fontSize: 15,
               color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
           Text(
             // DİNAMİK: Biyografi kullanıldı
-            bio, 
+            bio,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              fontSize: 14, 
+              fontSize: 14,
               height: 1.5,
               color: colorScheme.onSurface,
             ),
@@ -204,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
   // -----------------------------------------------------
-  // Aksiyon Butonları Bölümü
+  // Aksiyon Butonları Bölümü (Aynı Kalır)
   // -----------------------------------------------------
   Widget _buildActionButtons(ColorScheme colorScheme) {
     return Row(
@@ -222,11 +245,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
                 // Profil düzenlendikten sonra veriyi yenile
-                _fetchProfileData(); 
+                _fetchProfileData();
               },
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: colorScheme.outlineVariant), 
+                side: BorderSide(color: colorScheme.outlineVariant),
                 foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -244,7 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text('Paylaş'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: colorScheme.outlineVariant), 
+                side: BorderSide(color: colorScheme.outlineVariant),
                 foregroundColor: colorScheme.onSurface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -259,13 +282,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
   // -----------------------------------------------------
-  // Filtre Sekmeleri Bölümü
+  // Filtre Sekmeleri Bölümü (Aynı Kalır)
   // -----------------------------------------------------
   Widget _buildFilterTabs(ThemeData theme, ColorScheme colorScheme) {
     return Container(
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: colorScheme.outlineVariant, width: 1.0), 
+          bottom: BorderSide(color: colorScheme.outlineVariant, width: 1.0),
         ),
       ),
       height: 50,
@@ -276,9 +299,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         itemBuilder: (context, index) {
           final tab = _tabs[index];
           final isSelected = tab == _selectedTab;
-          
-          final selectedBg = colorScheme.primaryContainer.withOpacity(0.4); 
-          final selectedFg = colorScheme.primary; 
+
+          final selectedBg = colorScheme.primaryContainer.withOpacity(0.4);
+          final selectedFg = colorScheme.primary;
 
           return GestureDetector(
             onTap: () => setState(() => _selectedTab = tab),
@@ -314,7 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
   // -----------------------------------------------------
-  // Gönderi Izgarası Bölümü
+  // Gönderi Izgarası Bölümü (Aynı Kalır)
   // -----------------------------------------------------
   Widget _buildPostsGrid(ThemeData theme, ColorScheme colorScheme) {
     if (_filteredPosts.isEmpty) {
@@ -325,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
     }
-    
+
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -344,66 +367,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Tek bir gönderi kartı (Post modelini kullanır)
+  // 🚀 GÜNCELLENDİ: Tek bir gönderi kartı (Dosya tipi ayrımı yapar)
   Widget _buildPostCard(Post post, ThemeData theme, ColorScheme colorScheme) {
-    
+
     // API'dan çekilen Post modelinden imageurl alanını çek
     final String? imageUrl = post.imageurl;
     final formattedDate = DateFormat('dd MMMM yyyy').format(post.createdat);
-    
-    // Resim var mı kontrol et
-    final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
-    
+
+    final bool hasMedia = imageUrl != null && imageUrl.isNotEmpty;
+
+    final String extension = hasMedia ? _getFileExtensionFromUrl(imageUrl!) : '';
+    // Sadece bilinen resim formatlarını resim olarak kabul et
+    final bool isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp'].contains(extension);
+
     return Container(
       decoration: BoxDecoration(
-        color: colorScheme.surface, 
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant), 
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sadece resim varsa göster
-          if (hasImage)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Image.network(
-                imageUrl,
-                height: 120,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 120,
-                  color: colorScheme.surfaceVariant,
-                  child: Center(
-                    child: Icon(
-                      Icons.broken_image, 
-                      color: colorScheme.onSurface.withOpacity(0.5)
-                    )
-                  ),
-                ),
-              ),
-            ),
-          
+          // 🚀 MEDYA/DOSYA GÖSTERİMİ
+          if (hasMedia)
+            isImage
+              // 1. Resim ise: Resmi Göster
+              ? ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: Image.network(
+                    imageUrl!,
+                    height: 120,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 120,
+                      color: colorScheme.surfaceVariant,
+                      child: Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: colorScheme.onSurface.withOpacity(0.5)
+                        )
+                      ),
+                    ),
+                  )
+                )
+              // 2. Dosya ise: Dosya Kartını Göster (İndirme/Açma Özellikli)
+              : _buildPostFileCard(imageUrl!, extension, colorScheme, theme),
+
+          // GÖNDERİ İÇERİĞİ
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  post.title,
+                  // Post modelinde 'title' alanı yok. TextContent'in ilk 50 karakterini kullanalım.
+                  post.textcontent.length > 50 ? '${post.textcontent.substring(0, 50)}...' : post.textcontent,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface, 
+                    color: colorScheme.onSurface,
                   ),
-                  maxLines: hasImage ? 2 : 4,
+                  maxLines: hasMedia ? 2 : 4,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
                   formattedDate,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: 12, 
+                    fontSize: 12,
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -417,23 +449,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Gönderi durumunu gösteren widget (Yayınlandı, Taslak vb.)
+  // -----------------------------------------------------
+  // YENİ WIDGET: Ağ Üzerinden İndirilebilir Dosya Kartı
+  // -----------------------------------------------------
+  Widget _buildPostFileCard(String url, String extension, ColorScheme colorScheme, ThemeData theme) {
+
+    IconData icon;
+    if (extension == 'pdf') {
+        icon = Icons.picture_as_pdf;
+    } else if (['doc', 'docx'].contains(extension)) {
+        icon = Icons.description;
+    } else {
+        icon = Icons.insert_drive_file;
+    }
+
+    final fileName = 'Dosya.${extension.toUpperCase()}';
+
+    return InkWell(
+      onTap: () async {
+        // 🚀 GERÇEK URL AÇMA/İNDİRME İŞLEMİ
+        final uri = Uri.parse(url);
+
+        try {
+            // canLaunchUrl kontrolü ile açılıp açılamayacağını kontrol ediyoruz.
+            if (await canLaunchUrl(uri)) {
+                // Harici uygulamada (tarayıcı) açmaya zorluyoruz, bu çoğu zaman indirmeyi tetikler.
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } else {
+                throw Exception('Bağlantı açılamadı.');
+            }
+        } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text('Dosya açılamadı veya indirilemedi. Hata: ${e.toString()}'),
+                ),
+            );
+        }
+      },
+      child: Container(
+        height: 120, // Izgara görünümüne uyacak sabit yükseklik
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceVariant.withOpacity(0.5),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: colorScheme.primary, size: 30),
+              const SizedBox(height: 8),
+              Text(
+                fileName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Açmak/İndirmek için dokunun',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Gönderi durumunu gösteren widget (Yayınlandı, Taslak vb. - Aynı Kalır)
   Widget _buildStatusIndicator(String status, ColorScheme colorScheme) {
     IconData icon;
     Color color;
-    
+
     switch (status) {
       case 'Yayınlandı':
         icon = Icons.check_circle;
-        color = Colors.green.shade600; 
+        color = Colors.green.shade600;
         break;
       case 'Taslak':
         icon = Icons.edit_note;
-        color = Colors.orange.shade600; 
+        color = Colors.orange.shade600;
         break;
       case 'Planlandı':
         icon = Icons.timer_outlined;
-        color = colorScheme.primary; 
+        color = colorScheme.primary;
         break;
       default:
         icon = Icons.circle;
@@ -465,8 +573,8 @@ class _StatItem extends StatelessWidget {
   final ColorScheme colorScheme;
 
   const _StatItem({
-    required this.label, 
-    required this.value, 
+    required this.label,
+    required this.value,
     required this.theme,
     required this.colorScheme,
   });
@@ -478,13 +586,13 @@ class _StatItem extends StatelessWidget {
         Text(
           value,
           style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold, 
+            fontWeight: FontWeight.bold,
             fontSize: 18,
-            color: colorScheme.onSurface, 
+            color: colorScheme.onSurface,
           ),
         ),
         Text(
-          label, 
+          label,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurfaceVariant
           )

@@ -1,6 +1,11 @@
+// lib/providers/post_provider.dart
+
+import 'dart:convert'; // jsonDecode için gerekli
 import 'package:binu_frontend/services/api_service.dart';
 import 'package:flutter/material.dart';
 import '../models/post_model.dart';
+import 'package:dio/dio.dart'; // DioException ve Response objelerini işlemek için
+// import 'dart:io'; // File tipine artık burada gerek yok
 
 class PostProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -20,6 +25,7 @@ class PostProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // API'den doğrudan List<Post> beklenir (http getPosts metodu)
       _posts = await _apiService.getPosts();
       _isLoading = false;
       notifyListeners();
@@ -30,19 +36,32 @@ class PostProvider with ChangeNotifier {
     }
   }
 
-  // Yeni post ekle
+  // 🎯 GÜNCELLENDİ: Yeni post ekle (File yerine URL kabul eder)
   Future<void> createPost({
-    required String textContent,
-    String? imageUrl,
+    required String text,
+    required String category,
+    String? imageUrl, // 🌟 KRİTİK DEĞİŞİKLİK: File yerine String URL bekleniyor
   }) async {
     try {
-      final newPost = await _apiService.createPost(
-        textContent: textContent,
-        imageUrl: imageUrl,
+      // createPost artık http.Response döndürdüğü için tipini http.Response'a ayarladık
+      final response = await _apiService.createPost(
+        text: text,
+        category: category,
+        imageUrl: imageUrl, // 🌟 imageUrl gönderiliyor
       );
-      _posts.insert(0, newPost);
-      notifyListeners();
+      
+      // Yanıtı http.Response'dan alıp JSON'a çeviriyoruz.
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+      
+      if (responseData is Map<String, dynamic>) {
+        final newPost = Post.fromJson(responseData);
+        _posts.insert(0, newPost);
+        notifyListeners();
+      } else {
+        throw Exception('Sunucudan geçersiz post formatı alındı.');
+      }
     } catch (e) {
+      // DioException yerine genel Exception yakalanıyor, çünkü ApiService artık http.Response döndürüyor
       _error = e.toString();
       notifyListeners();
       rethrow;
@@ -52,7 +71,7 @@ class PostProvider with ChangeNotifier {
   // Post'u beğen/beğeniyi kaldır
   Future<void> toggleLike(int postId) async {
     try {
-      final result = await _apiService.likePost(postId);
+      await _apiService.likePost(postId);
       
       // Postları yeniden yükle (beğeni durumunu güncellemek için)
       await fetchPosts();
