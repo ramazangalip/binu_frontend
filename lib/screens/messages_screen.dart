@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 // 💡 Dinamik veri çekimi için gerekli importlar
 import 'package:binu_frontend/services/api_service.dart';
-import 'package:binu_frontend/models/post_model.dart'; // User modelinizin bulunduğu dosya
+import 'package:binu_frontend/models/post_model.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({Key? key}) : super(key: key);
@@ -12,14 +12,9 @@ class MessagesScreen extends StatefulWidget {
   State<MessagesScreen> createState() => _MessagesScreenState();
 }
 
-// -----------------------------------------------------
-// MESAJ EKRANI STATE'İ
-// -----------------------------------------------------
-
 class _MessagesScreenState extends State<MessagesScreen> {
   final ApiService _apiService = ApiService();
   
-  // 🚀 YENİ: Dinamik konuşma listesini tutacak state
   List<Map<String, dynamic>> _conversations = []; 
   bool _isLoading = true;
 
@@ -29,16 +24,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _fetchConversations();
   }
 
-  // -----------------------------------------------------
-  // 🚀 METOT: Konuşmaları API'den Çekme
-  // -----------------------------------------------------
   Future<void> _fetchConversations() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (!mounted) return;
+    setState(() => _isLoading = true);
 
     try {
-      // 💡 ApiService.fetchConversations metodunu çağırıyoruz
       final List<Map<String, dynamic>> fetchedData = await _apiService.fetchConversations();
       
       if (mounted) {
@@ -48,11 +38,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
         });
       }
     } catch (e) {
-      print('Konuşma listesi çekilirken hata: $e');
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Konuşmalar yüklenemedi: ${e.toString()}')),
         );
@@ -60,9 +47,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
-  // -----------------------------------------------------
-  // Yeni Sohbet Modalını Açma (Aynı Kalır)
-  // -----------------------------------------------------
   void _openNewChatModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -83,7 +67,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
       },
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -113,32 +96,27 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       itemBuilder: (context, index) {
                         final conversation = _conversations[index];
                         
-                        // 🚀 GÜVENLİ VERİ ÇEKİMİ
-                        // Karşı kullanıcının bilgileri 'other_user' map'i içindedir (backend'de MessageSummarySerializer kullanıldıysa)
+                        // Backend'den gelen 'other_user' yapısını ayrıştırıyoruz
                         final otherUser = conversation['other_user'] as Map<String, dynamic>?;
-                        
                         final unreadCount = conversation['unreadCount'] as int? ?? 0;
-                        final String name = otherUser?['fullname'] as String? ?? conversation['name'] as String? ?? 'Bilinmeyen Kullanıcı';
-                        final String lastMessage = conversation['messagecontent'] as String? ?? conversation['lastMessage'] as String? ?? 'Mesaj yok.';
                         
-                        // Zaman formatını backend'den gelen sentat veya time'dan alın
-                        final String time = conversation['sentat'] != null ? _formatTimeAgo(DateTime.parse(conversation['sentat'])) : conversation['time'] as String? ?? '';
+                        final String name = otherUser?['fullname'] as String? ?? 'Bilinmeyen Kullanıcı';
+                        final String lastMessage = conversation['messagecontent'] as String? ?? 'Mesaj yok.';
+                        final String avatarUrl = otherUser?['profileimageurl'] as String? ?? '';
                         
-                        final String avatarUrl = otherUser?['profileimageurl'] as String? ?? conversation['avatar'] as String? ?? '';
-                        final bool hasAvatar = avatarUrl.isNotEmpty;
+                        final String time = conversation['sentat'] != null 
+                            ? _formatTimeAgo(DateTime.parse(conversation['sentat'])) 
+                            : '';
 
                         return ListTile(
                           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                           leading: CircleAvatar(
                             radius: 28,
-                            backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
+                            backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
                             backgroundColor: colorScheme.surfaceVariant, 
-                            child: !hasAvatar ? Icon(Icons.person, color: colorScheme.onSurface) : null,
+                            child: avatarUrl.isEmpty ? Icon(Icons.person, color: colorScheme.onSurface) : null,
                           ),
-                          title: Text(
-                            name,
-                            style: theme.textTheme.titleMedium, 
-                          ),
+                          title: Text(name, style: theme.textTheme.titleMedium),
                           subtitle: Text(
                             lastMessage,
                             maxLines: 1,
@@ -151,10 +129,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                time, 
-                                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)
-                              ),
+                              Text(time, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                               if (unreadCount > 0) ...[
                                 const SizedBox(height: 4),
                                 Container(
@@ -172,16 +147,28 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             ],
                           ),
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ChatDetailScreen(
-                                  userName: name,
-                                  avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : 'https://i.pravatar.cc/150?img=default', 
-                                  // userId: otherUser?['userid'], 
+                            // 🚀 DÜZELTME VE DEBUG: Hem 'userid' hem 'id' alanını kontrol ediyoruz
+                            final int targetId = otherUser?['userid'] ?? otherUser?['id'] ?? 0;
+                            
+                            debugPrint("DEBUG: Tıklanan Sohbet - Hedef ID: $targetId");
+                            debugPrint("DEBUG: Diğer Kullanıcı Verisi: $otherUser");
+
+                            if (targetId != 0) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatDetailScreen(
+                                    userName: name,
+                                    avatarUrl: avatarUrl,
+                                    userId: targetId,
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Hata: Kullanıcı bilgisi alınamadı.')),
+                              );
+                            }
                           },
                         );
                       },
@@ -196,29 +183,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
   
-  // 💡 API'den gelen ISO 8601 tarihini formatlamak için helper metot
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
 
     if (difference.inDays > 7) {
-      return '${difference.inDays ~/ 7} hafta önce';
+      return '${difference.inDays ~/ 7}h';
     } else if (difference.inDays > 0) {
-      return '${difference.inDays} gün önce';
+      return '${difference.inDays}g';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} saat önce';
+      return '${difference.inHours}s';
     } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} dakika önce';
+      return '${difference.inMinutes}dk';
     } else {
       return 'şimdi';
     }
   }
 }
-
-
-// =================================================================
-// 🚀 YENİ WIDGET: Yeni Sohbet Modal İçeriği (Dinamik Arama)
-// =================================================================
 
 class _NewChatModalContent extends StatefulWidget {
   final ScrollController scrollController;
@@ -234,23 +215,15 @@ class _NewChatModalContentState extends State<_NewChatModalContent> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = false;
-  
   List<User> _searchedUsers = []; 
 
-  @override
-  void initState() {
-    super.initState();
-  }
-  
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  // API üzerinden kullanıcı aramasını gerçekleştirir
   void _performSearch(String query) async {
-    // Sadece 3 karakterden sonra arama yap
     if (query.trim().length < 3) {
       setState(() {
         _searchQuery = query;
@@ -267,7 +240,6 @@ class _NewChatModalContentState extends State<_NewChatModalContent> {
 
     try {
       final results = await widget.apiService.searchUsers(query); 
-      
       if (mounted) {
         setState(() {
           _searchedUsers = results;
@@ -275,24 +247,19 @@ class _NewChatModalContentState extends State<_NewChatModalContent> {
         });
       }
     } catch (e) {
-      print("Kullanıcı arama hatası: $e");
       if (mounted) {
         setState(() {
           _searchedUsers = [];
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kullanıcı arama başarısız: ${e.toString()}')),
-        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colorScheme = theme.colorScheme;
-    final List<User> filteredUsers = _searchedUsers;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Container(
       decoration: BoxDecoration(
@@ -301,87 +268,62 @@ class _NewChatModalContentState extends State<_NewChatModalContent> {
       ),
       child: Column(
         children: [
-          // Başlık ve Kapatma Butonu
           Padding(
             padding: const EdgeInsets.only(top: 16, bottom: 8, left: 16, right: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Yeni Sohbet Başlat',
-                  style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
+                Text('Yeni Sohbet Başlat', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
               ],
             ),
           ),
-          
-          // Arama Çubuğu
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
               controller: _searchController,
-              onChanged: (value) {
-                _performSearch(value); 
-              },
+              onChanged: _performSearch,
               decoration: InputDecoration(
-                hintText: 'Kişi ara (Ad veya Kullanıcı Adı)',
-                prefixIcon: Icon(Icons.search, color: colorScheme.onSurfaceVariant),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+                hintText: 'Kişi ara...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 filled: true,
                 fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
             ),
           ),
-
-          // Kullanıcı Listesi
           Expanded(
             child: _isLoading 
-                ? Center(child: CircularProgressIndicator(color: colorScheme.primary))
-                : filteredUsers.isEmpty
-                    ? Center(
-                        child: Text(
-                          _searchQuery.isEmpty 
-                              ? "Aramaya başlamak için en az 3 harf girin." 
-                              : "Aradığınız kriterde kullanıcı bulunamadı.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                      )
+                ? const Center(child: CircularProgressIndicator())
+                : _searchedUsers.isEmpty
+                    ? Center(child: Text(_searchQuery.isEmpty ? "Aramaya başlayın..." : "Kullanıcı bulunamadı."))
                     : ListView.builder(
                         controller: widget.scrollController,
-                        padding: const EdgeInsets.only(top: 8),
-                        itemCount: filteredUsers.length,
+                        itemCount: _searchedUsers.length,
                         itemBuilder: (context, index) {
-                          final user = filteredUsers[index];
-                          final hasAvatar = user.profileimageurl != null && user.profileimageurl!.isNotEmpty;
+                          final user = _searchedUsers[index];
+                          final avatarUrl = user.profileimageurl ?? '';
                           
                           return ListTile(
                             leading: CircleAvatar(
-                              radius: 24,
-                              backgroundImage: hasAvatar ? NetworkImage(user.profileimageurl!) : null,
-                              backgroundColor: colorScheme.primaryContainer,
-                              child: !hasAvatar ? Icon(Icons.person, color: colorScheme.onPrimaryContainer) : null,
+                              backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+                              child: avatarUrl.isEmpty ? const Icon(Icons.person) : null,
                             ),
-                            title: Text(user.fullname, style: theme.textTheme.titleMedium),
-                            subtitle: Text('@${user.username}', style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+                            title: Text(user.fullname),
+                            subtitle: Text('@${user.username}'),
                             onTap: () {
-                              // Sohbet başlatma aksiyonu
+                              // 🚀 User modelinizdeki 'userid' alanını kontrol edin
+                              final int targetId = user.userid ?? 0;
+                              debugPrint("DEBUG: Yeni Sohbet Başlat - Hedef ID: $targetId");
+
                               Navigator.pop(context); // Modalı kapat
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => ChatDetailScreen(
                                     userName: user.fullname,
-                                    avatarUrl: user.profileimageurl ?? Icons.person.toString(), 
-                                    // userId: user.userid, 
+                                    avatarUrl: avatarUrl,
+                                    userId: targetId,
                                   ),
                                 ),
                               );

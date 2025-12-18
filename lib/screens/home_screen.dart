@@ -227,22 +227,10 @@ Widget build(BuildContext context) {
     body: ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        TextField(
-          decoration: InputDecoration(
-            hintText: "Kurs ara...",
-            prefixIcon: Icon(
-              Icons.search,
-              color: colorScheme.onSurface.withOpacity(0.6),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 0,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+       
+        
 
-        _buildSectionTitle("Takip Ettiklerin", theme, colorScheme),
+        _buildSectionTitle("Gönderiler", theme, colorScheme),
         const SizedBox(height: 8),
 
         if (_isLoadingPosts)
@@ -320,8 +308,7 @@ Widget build(BuildContext context) {
         const SizedBox(height: 20),
 
         _buildScoreCard(theme, colorScheme),
-        const SizedBox(height: 8),
-        _buildProjectStatusCard(theme, colorScheme),
+        
       ],
     ),
     floatingActionButton: FloatingActionButton(
@@ -1035,80 +1022,5 @@ Widget _buildScoreCard(
   );
 }
 
-Widget _buildProjectStatusCard(
-  ThemeData theme,
-  ColorScheme colorScheme,
-) {
-  return Card(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.assignment_turned_in_outlined,
-                color: colorScheme.tertiary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Proje Durumu',
-                style: theme.textTheme.headlineMedium
-                    ?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Teslim Edilen Projeler',
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(
-              fontSize: 14,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '2 / 3',
-            style: theme.textTheme.headlineSmall
-                ?.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      const ReportsScreen(),
-                ),
-              );
-            },
-            child: Text(
-              'Detaylari Gor',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+
 }

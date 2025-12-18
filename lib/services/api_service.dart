@@ -56,7 +56,7 @@ class ApiService {
           'password': password,
           'role': roleId,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 90));
       
       if (response.statusCode == 201 || response.statusCode == 200) {
         return true;
@@ -82,7 +82,7 @@ class ApiService {
           'email': email,
           'password': password,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -154,7 +154,7 @@ class ApiService {
     try {
       final headers = await _getHeaders();
       final response = await http.get(url, headers: headers)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
@@ -176,7 +176,7 @@ class ApiService {
     try {
       final headers = await _getHeaders();
       final response = await http.get(url, headers: headers)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
@@ -250,7 +250,7 @@ class ApiService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         return;
@@ -473,7 +473,7 @@ class ApiService {
     final url = Uri.parse('$_baseUrl/notifications/');
     try {
       final headers = await _getHeaders();
-      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 10));
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 90));
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
@@ -555,6 +555,67 @@ Future<List<Map<String, dynamic>>> fetchConversations() async {
     }
   } catch (e) {
     throw Exception('Ağ hatası veya sunucu hatası: ${e.toString()}');
+  }
+}
+Future<List<dynamic>> getChatHistory(int otherUserId) async {
+  final response = await http.get(
+    Uri.parse('$_baseUrl/messages/$otherUserId/history/'),
+    headers: await _getHeaders(),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    throw Exception('Geçmiş mesajlar yüklenemedi');
+  }
+}
+Future<User?> fetchUserById(int userId) async {
+  final url = Uri.parse('$_baseUrl/users/$userId/'); 
+  try {
+    final headers = await _getHeaders();
+    final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200) {
+      return User.fromJson(jsonDecode(utf8.decode(response.bodyBytes)));
+    }
+    return null;
+  } catch (e) {
+    print("Kullanıcı profil çekme hatası: $e");
+    return null;
+  }
+}
+
+// Belirli bir kullanıcının postlarını çekmek için
+Future<List<Post>> fetchUserPostsById(int userId) async {
+  final url = Uri.parse('$_baseUrl/posts/user/$userId/');
+  try {
+    final headers = await _getHeaders();
+    final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 30));
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+      return jsonData.map((json) => Post.fromJson(json)).toList();
+    }
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Belirli bir kullanıcının postlarını çekmek için
+Future<List<Post>> fetchPostsByUserId(int userId) async {
+  final url = Uri.parse('$_baseUrl/posts/user/$userId/'); // Backend post endpoint'inize göre güncelleyin
+  try {
+    final headers = await _getHeaders();
+    final response = await http.get(url, headers: headers)
+        .timeout(const Duration(seconds: 90));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
+      return jsonData.map((json) => Post.fromJson(json)).toList();
+    }
+    return [];
+  } catch (e) {
+    print("Kullanıcı postlarını çekme hatası: $e");
+    return [];
   }
 }
 }

@@ -59,10 +59,7 @@ class CustomBottomNavigationBar extends StatelessWidget {
           icon: Icon(Icons.message),
           label: 'Mesajlar',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.report),
-          label: 'Raporlar',
-        ),
+        
       ],
     );
   }

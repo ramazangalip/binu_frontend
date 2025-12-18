@@ -138,10 +138,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       color: rankBgColor,
       elevation: 1,
       child: InkWell(
-        onTap: () {
-          // Profil sayfasina yonlendirme (userid'yi parametre olarak gondermelisiniz)
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
-        },
+        // LeaderboardScreen içindeki _buildUserRankTile metodunda InkWell onTap:
+onTap: () {
+  Navigator.push(
+    context, 
+    MaterialPageRoute(
+      builder: (context) => ProfileScreen(userId: user.userid), // 'user.id' modelindeki int ID alanı
+    ),
+  );
+},
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),

@@ -26,10 +26,12 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const SearchScreen(),
-    const ProfileScreen(), // Index 2
+    const ProfileScreen(), 
     const LeaderboardScreen(),
     const MessagesScreen(),
-    const ReportsScreen(),
+    
+    
+
   ];
 
   void _onTabTapped(int index) {
