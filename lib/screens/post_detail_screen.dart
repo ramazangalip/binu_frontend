@@ -41,7 +41,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   // HELPER METOTLAR
   // -------------------------------------------------------------
 
-  // URL'den dosya uzantısını çeker
+  // Kullanıcının daha önce yorum yapıp yapmadığını kontrol eder
+  bool _userAlreadyCommented() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final myId = authProvider.currentUser?.userid;
+    if (myId == null) return false;
+    return _currentPost.comments.any((comment) => comment.user.userid == myId);
+  }
+
   String _getFileExtensionFromUrl(String url) {
     try {
       final uri = Uri.parse(url);
@@ -56,7 +63,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // Post detaylarini (yorumlar ve begeni durumu dahil) API'den ceker
   Future<void> _fetchPostData() async {
     try {
       final updatedPost = await _apiService.getPost(_currentPost.postid);
@@ -81,9 +87,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // Begenme/Begeniyi Kaldirma API'si
   void _toggleLike() async {
-    // Optimistik guncelleme icin onceki durumu kaydet
     final bool previousLikedState = _currentPost.isLikedByUser;
     final int previousLikeCount = _currentPost.likesCount;
 
@@ -112,12 +116,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     try {
       final result = await _apiService.likePost(_currentPost.postid);
 
-      // Eger API cevabi optimistik guncellemeyle celisirse, UI'i yeniden cek
       if (result['liked'] != _currentPost.isLikedByUser) {
         await _fetchPostData();
       }
     } catch (e) {
-      // Hata durumunda UI'i geri al (rollback)
       if (mounted) {
         setState(() {
           _currentPost = _currentPost.copyWith(
@@ -132,11 +134,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // Yorum Ekleme API'si
   void _addComment() async {
     if (_commentController.text.trim().isEmpty) return;
 
     final newCommentText = _commentController.text;
+    final String postCategory = _currentPost.category;
+
     _commentController.clear();
     FocusScope.of(context).unfocus();
 
@@ -158,17 +161,30 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         commentText: newCommentText,
       );
 
-      // Yorumlari yeniden cekerek listeyi guncelle
       await _fetchPostData();
 
       if (mounted) {
+        // Puan guncellemesi icin AuthProvider'i tetikle
+        await Provider.of<AuthProvider>(context, listen: false).updateUserData();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            content: Text('Yorumun basariyla gonderildi',
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSecondary)),
-            duration: const Duration(milliseconds: 800),
+            backgroundColor: postCategory == "Soru" ? Colors.green : Theme.of(context).colorScheme.secondary,
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                if (postCategory == "Soru") const Icon(Icons.stars, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  postCategory == "Soru" 
+                      ? 'Yorumun gonderildi! +15 Puan kazandin.' 
+                      : 'Yorumun basariyla gonderildi',
+                  style: TextStyle(
+                      color: postCategory == "Soru" ? Colors.white : Theme.of(context).colorScheme.onSecondary),
+                ),
+              ],
+            ),
+            duration: const Duration(milliseconds: 2000),
           ),
         );
       }
@@ -176,13 +192,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       print('Yorum eklenirken hata: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Yorum gonderilemedi: ${e.toString()}')),
+          SnackBar(content: Text(e.toString().contains("ValidationError") ? "Bu soruya zaten bir yorum yapmissiniz." : 'Yorum gonderilemedi: $e')),
         );
       }
     }
   }
 
-  // Zaman formatlama metodu (Modelden gelen DateTime nesnesini kullanir)
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
@@ -200,10 +215,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // -------------------------------------------------------------
-  // WIDGET BUILD METODU VE ALT METOTLAR
-  // -------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -215,6 +226,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         body: Center(child: CircularProgressIndicator(color: colorScheme.primary)),
       );
     }
+
+    // "Soru" kategorisi ve mukerrer yorum kontrolu
+    final bool canComment = _currentPost.category != "Soru" || !_userAlreadyCommented();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -234,19 +248,43 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
           ),
-          // DINAMIK PROFIL FOTOGRAFI ICIN AUTH PROVIDER'I KULLAN
-          Consumer<AuthProvider>(
-            builder: (context, authProvider, child) {
-              return _buildCommentComposer(
-                  theme, colorScheme, authProvider.currentUser?.profileimageurl);
-            },
-          ),
+          canComment 
+          ? Consumer<AuthProvider>(
+              builder: (context, authProvider, child) {
+                return _buildCommentComposer(
+                    theme, colorScheme, authProvider.currentUser?.profileimageurl);
+              },
+            )
+          : _buildAlreadyCommentedBanner(colorScheme, theme),
         ],
       ),
     );
   }
 
-  // Ana gonderi icerigi
+  Widget _buildAlreadyCommentedBanner(ColorScheme colorScheme, ThemeData theme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withOpacity(0.5),
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Icon(Icons.lock_person_outlined, color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 8),
+            Text(
+              "Bu soruya zaten cevap vermissiniz.",
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Text("Her soruya yalnizca bir kez yorum yapabilirsiniz."),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPostContent(ThemeData theme, ColorScheme colorScheme) {
     final user = _currentPost.user;
     final profilePic = user.profileimageurl;
@@ -289,9 +327,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       color: colorScheme.onSurface,
                     ),
                   ),
+                  Text(
+                    _currentPost.category,
+                    style: TextStyle(color: colorScheme.primary, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
-              const Spacer(),
             ],
           ),
           const SizedBox(height: 16),
@@ -304,7 +345,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
 
-          // Medya/Dosya Kontrolu
           if (hasMedia) ...[
             const SizedBox(height: 16),
             isImage
@@ -338,7 +378,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // YENI WIDGET: Dosya Indirme Kartı (URL LAUNCHER AKTIF)
   Widget _buildFileDownloadCard(
       String url, String extension, ColorScheme colorScheme, ThemeData theme) {
     IconData icon;
@@ -356,12 +395,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8.0),
       child: InkWell(
         onTap: () async {
-          // GERCEK URL ACMA/INDIRME ISLEMI
           final uri = Uri.parse(url);
-
           try {
             if (await canLaunchUrl(uri)) {
-              // Harici uygulamada (tarayıcı) acmaya zorluyoruz, bu cogu zaman indirmeyi tetikler.
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             } else {
               throw Exception('Baglanti acilamiyor.');
@@ -369,7 +405,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           } catch (e) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Dosya acilamadi veya indirilemedi. URL: $url'),
+                content: Text('Dosya acilamadi veya indirilemedi.'),
               ),
             );
           }
@@ -403,7 +439,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Gonderi Istatistikleri
   Widget _buildPostStats(ThemeData theme, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -430,7 +465,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Etkilesim Butonlari (Yorum, Begeni)
   Widget _buildActionButtons(ThemeData theme, ColorScheme colorScheme) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -441,14 +475,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          // Yorum Sayisi Butonu
           _ActionButton(
             icon: Icons.chat_bubble_outline,
             label: '${_currentPost.comments.length}',
             colorScheme: colorScheme,
           ),
-
-          // Tiklanabilir Begeni Butonu
           InkWell(
             onTap: _toggleLike,
             child: Padding(
@@ -481,7 +512,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Yorumlar Bolumu
   Widget _buildCommentsSection(ThemeData theme, ColorScheme colorScheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,7 +532,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           itemCount: _currentPost.comments.length,
           itemBuilder: (context, index) {
             final comment = _currentPost.comments[index];
-
             final commenterProfilePic = comment.user.profileimageurl;
             final bool hasCommenterProfilePic =
                 commenterProfilePic != null && commenterProfilePic.isNotEmpty;
@@ -531,9 +560,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Yorum Yapan Kullanici Bilgileri Satiri (Wrap ile tasma engellendi)
                         Wrap(
-                          spacing: 8, // Ogeler arasindaki yatay bosluk
+                          spacing: 8,
                           children: [
                             Text(
                               comment.user.fullname,
@@ -557,11 +585,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        // Yorum Metni (Tasma duzeltildi)
                         Text(
                           comment.commenttext,
                           softWrap: true,
-                          overflow: TextOverflow.fade,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontSize: 15,
                             color: colorScheme.onSurface,
@@ -579,10 +605,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Yorum Yazma Alani
   Widget _buildCommentComposer(
       ThemeData theme, ColorScheme colorScheme, String? currentUserProfileUrl) {
-    // AuthProvider'dan gelen URL'yi kullan, yoksa null olsun.
     final String? profilePic = currentUserProfileUrl;
     final bool hasCurrentUserProfilePic =
         profilePic != null && profilePic.isNotEmpty;
@@ -598,7 +622,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              // DINAMIK PROFIL FOTOGRAFI KULLANIMI
               backgroundImage:
                   hasCurrentUserProfilePic ? NetworkImage(profilePic!) : null,
               child: hasCurrentUserProfilePic
@@ -614,11 +637,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 controller: _commentController,
                 decoration: InputDecoration(
                   hintText: 'Yorumunuzu yazin...',
-                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30.0),
                     borderSide: BorderSide.none,
                   ),
+                  filled: true,
+                  fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),

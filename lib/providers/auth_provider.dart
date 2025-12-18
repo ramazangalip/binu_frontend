@@ -59,4 +59,14 @@ class AuthProvider with ChangeNotifier {
     _currentUser = null;
     notifyListeners();
   }
+  Future<void> updateUserData() async {
+  try {
+    // API'den en güncel profil bilgilerini (puan dahil) çek
+    final updatedUser = await ApiService().fetchUserProfile();
+    _currentUser = updatedUser;
+    notifyListeners(); // Tüm sayfaları puanın değiştiğine dair haberdar et
+  } catch (e) {
+    print("Kullanıcı verisi güncellenemedi: $e");
+  }
+}
 }
